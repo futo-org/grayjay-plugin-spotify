@@ -3,4 +3,4 @@
 2.  load `BiliBiliConfig.json` into Grayjay
 
 ## Grayjay Bugs
-- [ ]   something
+- [ ]   none
