@@ -1,3 +1,4 @@
+//#region custom types
 export type Settings = unknown
 
 export type SpotifySource = Required<Source<
@@ -10,6 +11,55 @@ export type SpotifySource = Required<Source<
 
 export type State = {
     readonly bearer_token: string
+    readonly license_uri: string
+}
+//#endregion
+
+//#region JSON types
+export type ContentType = "track" | "episode"
+
+export type TranscriptResponse = {
+    readonly section: ({
+        readonly startMs: number
+        readonly text: {
+            readonly sentence: {
+                readonly text: string
+            }
+        }
+    } | {
+        readonly startMs: number
+        readonly title: unknown
+    })[]
+    readonly language: "en"
+}
+
+export type EpisodeMetadataResponse = {
+    readonly data: {
+        readonly episodeUnionV2: {
+            readonly name: string
+            readonly duration: {
+                readonly totalMilliseconds: number
+            }
+            readonly coverArt: {
+                readonly sources: {
+                    readonly url: string
+                    readonly height: number
+                }[]
+            }
+            readonly releaseDate: {
+                readonly isoString: string
+            }
+            readonly uri: string
+            readonly audio: {
+                readonly items: {
+                    readonly fileId: string
+                    // only MP4_128 and MP4_256 are available on the web and therefore what we support
+                    readonly format: "MP4_128" | "AAC_24"
+                }[]
+            }
+            readonly htmlDescription: string
+        }
+    }
 }
 
 export type SongMetadataResponse = {
@@ -36,7 +86,8 @@ export type SongMetadataResponse = {
     readonly canonical_uri: string
     readonly file: {
         readonly file_id: string
-        readonly format: "MP4_128" | "AAC_24"
+        // only MP4_128 and MP4_256 are available on the web and therefore what we support
+        readonly format: "MP4_128" | "AAC_24" | "MP4_256" | "MP4_256_DUAL" | "OGG_VORBIS_320"
     }[]
 }
 
@@ -61,3 +112,4 @@ export type GetLicenseResponse = {
     readonly expires: number
     readonly uri: string
 }
+//#endregion

@@ -21,11 +21,12 @@
         "open.spotify.com",
         "spclient.wg.spotify.com",
         "gue1-spclient.spotify.com",
-        "seektables.scdn.co"
+        "seektables.scdn.co",
+        "api-partner.spotify.com"
     ],
     "authentication": {
 		"loginUrl": "https://accounts.spotify.com/en/login",
-		"cookiesToFind": ["SESSDATA"],
+		"cookiesToFind": ["sp_dc"],
 		"userAgent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36"
 	}
 }
