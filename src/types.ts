@@ -3,21 +3,259 @@ export type Settings = unknown
 
 export type SpotifySource = Required<Source<
     { readonly something: "unknown" },
-    "unknown",
-    "POSTS",
+    FilterGroupIDs,
+    ChannelTypeCapabilities,
     "POSTS",
     "POSTS"
 >>
 
 export type State = {
     readonly bearer_token: string
+    readonly expiration_timestamp_ms: number
     readonly license_uri: string
+    readonly is_premium: boolean
+    readonly username?: string
+    readonly country?: string
+}
+export type FilterGroupIDs = ""
+export type ChannelTypeCapabilities = typeof Type.Feed.Playlists | typeof Type.Feed.Albums | typeof Type.Feed.Videos
+
+export type Section = GenrePlaylistSection
+    | HomePlaylistSection
+    | {
+        readonly data: {
+            readonly __typename: "BrowseRelatedSectionData"
+        }
+    }
+    | WhatsNewSection
+export type WhatsNewSection = {
+    readonly data: {
+        readonly __typename: "WhatsNewSectionData"
+        readonly title: {
+            readonly text: "What's New"
+        }
+    }
+    readonly section_url: "https://open.spotify.com/content-feed"
+    readonly sectionItems: {
+        readonly items: {
+            readonly content: {
+                readonly data: SectionItemAlbum
+            }
+        }[]
+        readonly totalCount: number
+    }
 }
 //#endregion
 
 //#region JSON types
 export type ContentType = "track" | "episode"
 export type PlaylistType = "album" | "playlist"
+export type ChannelType = "show" | "user" | "artist" | "genre" | "section" | "content-feed"
+
+export type SectionItemEpisode = {
+    readonly __typename: "Episode"
+    readonly coverArt: {
+        readonly sources: ImageSources
+    }
+    readonly duration: {
+        readonly totalMilliseconds: number
+    }
+    readonly id: string
+    readonly name: string
+    readonly podcastV2: {
+        readonly data: {
+            readonly name: string
+            /** in this format "spotify:show:5VzFvh1JlEhBMS6ZHZ8CNO" */
+            readonly uri: string
+            readonly coverArt: {
+                readonly sources: ImageSources
+            }
+        }
+    }
+    readonly releaseDate: {
+        readonly isoString: string
+    }
+}
+export type SectionItemPlaylist = {
+
+    readonly attributes: {
+        key: "created" | "madeFor.username"
+        value: string
+    }[]
+    readonly description: string
+    readonly name: string
+    readonly ownerV2: {
+        readonly data: {
+            readonly name: string
+        }
+    }
+    readonly images: {
+        readonly items: {
+            readonly sources: {
+                readonly height: number | null
+                readonly url: string
+            }[]
+        }[]
+    }
+    readonly uri: string
+    readonly __typename: "Playlist"
+
+}
+export type SectionItemNotFound = {
+    readonly __typename: "NotFound"
+}
+export type SectionItemAlbum = {
+
+    readonly name: string
+    readonly coverArt: {
+        readonly sources: ImageSources
+    }
+    readonly artists: {
+        readonly items: {
+            readonly profile: {
+                readonly name: string
+            }
+            readonly uri: string
+        }[]
+    }
+    readonly uri: string
+    readonly __typename: "Album"
+}
+
+export type SectionItemArtist = {
+    readonly __typename: "Artist",
+}
+
+export type GenrePlaylistSection = {
+    readonly data: {
+        readonly __typename: "BrowseGenericSectionData"
+        readonly title: {
+            readonly transformedLabel: string
+        }
+    }
+    readonly uri: string
+    readonly sectionItems: {
+        readonly items: {
+            readonly content: {
+                readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemNotFound | SectionItemEpisode
+            }
+        }[]
+        readonly totalCount: number
+    }
+}
+
+export type HomePlaylistSection = {
+    readonly data: {
+        readonly __typename: "HomeGenericSectionData" | "HomeRecentlyPlayedSectionData"
+        readonly title: {
+            readonly text: string
+        }
+    }
+    readonly uri: string
+    readonly sectionItems: {
+        readonly items: {
+            readonly content: {
+                readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemNotFound | SectionItemEpisode
+            }
+        }[]
+        readonly totalCount: number
+    }
+}
+
+export type BrowsePageResponse = {
+    readonly data: {
+        readonly browse: {
+            readonly header: {
+                readonly title: {
+                    readonly transformedLabel: string
+                }
+            }
+            readonly sections: {
+                readonly items: Section[]
+                readonly totalCount: number
+            }
+            readonly __typename: "BrowseSectionContainer"
+        } | {
+            readonly __typename: "GenericError"
+        }
+    }
+}
+
+export type BrowseSectionResponse = {
+    readonly data: {
+        readonly browseSection: {
+            readonly sectionItems: {
+                readonly pagingInfo: {
+                    readonly nextOffset: number | null
+                }
+                readonly totalCount: number
+                readonly items: {
+                    readonly content: {
+                        readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemNotFound | SectionItemEpisode
+                    }
+                }[]
+            }
+            readonly data: {
+                readonly title: {
+                    readonly transformedLabel: string
+                }
+            }
+        }
+
+    }
+}
+
+export type UserPlaylistsResponse = {
+    readonly public_playlists: {
+        uri: string
+        name: string
+        /** not an actual url. in the format spotify:(image|mosaic):<id>
+         * image url prefix is https://i.scdn.co/image/
+         * mosaic is https://mosaic.scdn.co/300/
+         */
+        image_url: "spotify:image:ab67706c0000da84e7cfad2835d15c8d7829ddb8",
+        owner_name: string
+        owner_uri: string
+    }[]
+    /** this is bugged and only works when offset is 0 */
+    readonly total_public_playlists_count: number
+}
+
+export type BookChaptersResponse = {
+    readonly data: {
+        readonly podcastUnionV2: {
+            readonly chaptersV2: {
+                readonly totalCount: number
+                readonly items: {
+                    readonly entity: {
+                        readonly data: IChapterEpisodeUnionV2
+                    }
+                }[]
+                readonly pagingInfo: {
+                    readonly nextOffset: number | null
+                }
+            }
+        }
+    }
+}
+
+export type PodcastEpisodesResponse = {
+    readonly data: {
+        readonly podcastUnionV2: {
+            readonly episodesV2: {
+                readonly totalCount: number
+                readonly items: {
+                    readonly entity: {
+                        readonly data: IEpisodeEpisodeUnionV2
+                    }
+                }[]
+                readonly pagingInfo: {
+                    readonly nextOffset: number | null
+                }
+            }
+        }
+    }
+}
 
 export type TranscriptResponse = {
     readonly section: ({
@@ -34,40 +272,67 @@ export type TranscriptResponse = {
     readonly language: "en"
 }
 
-export type EpisodeMetadataResponse = {
-    readonly data: {
-        readonly episodeUnionV2: {
+export interface ICommonEpisodeUnionv2 {
+    readonly name: string
+    readonly duration: {
+        readonly totalMilliseconds: number
+    }
+    readonly coverArt: {
+        readonly sources: ImageSources
+    }
+    readonly uri: string
+    readonly audio: {
+        readonly items: {
+            readonly fileId: string
+            // only MP4_128 and MP4_256 are available on the web and therefore what we support
+            readonly format: "MP4_128" | "AAC_24"
+        }[]
+    }
+    readonly htmlDescription: string
+    readonly mediaTypes: ["AUDIO"] | ["AUDIO", "VIDEO"]
+    readonly transcripts: undefined | {
+        readonly items: unknown
+    }
+    readonly playability: {
+        playable: boolean
+    }
+    readonly "__typename": "Episode" | "Chapter"
+}
+
+export interface IChapterEpisodeUnionV2 extends ICommonEpisodeUnionv2 {
+    readonly audiobookV2: {
+        readonly data: {
             readonly name: string
-            readonly duration: {
-                readonly totalMilliseconds: number
-            }
+            /** in this format "spotify:show:5VzFvh1JlEhBMS6ZHZ8CNO" */
+            readonly uri: string
             readonly coverArt: {
                 readonly sources: ImageSources
             }
-            readonly releaseDate: {
-                readonly isoString: string
-            }
-            readonly uri: string
-            readonly audio: {
-                readonly items: {
-                    readonly fileId: string
-                    // only MP4_128 and MP4_256 are available on the web and therefore what we support
-                    readonly format: "MP4_128" | "AAC_24"
-                }[]
-            }
-            readonly htmlDescription: string
-            readonly podcastV2: {
-                readonly data: {
-                    readonly name: string
-                    /** in this format "spotify:show:5VzFvh1JlEhBMS6ZHZ8CNO" */
-                    readonly uri: string
-                    readonly coverArt: {
-                        readonly sources: ImageSources
-                    }
-                }
-            }
-            readonly mediaTypes: ["AUDIO"] | ["AUDIO", "VIDEO"]
         }
+    }
+    readonly "__typename": "Chapter"
+}
+
+export interface IEpisodeEpisodeUnionV2 extends ICommonEpisodeUnionv2 {
+    readonly podcastV2: {
+        readonly data: {
+            readonly name: string
+            /** in this format "spotify:show:5VzFvh1JlEhBMS6ZHZ8CNO" */
+            readonly uri: string
+            readonly coverArt: {
+                readonly sources: ImageSources
+            }
+        }
+    }
+    readonly releaseDate: {
+        readonly isoString: string
+    }
+    readonly "__typename": "Episode"
+}
+
+export type EpisodeMetadataResponse = {
+    readonly data: {
+        readonly episodeUnionV2: IEpisodeEpisodeUnionV2 | IChapterEpisodeUnionV2
     }
 }
 
@@ -78,6 +343,49 @@ export type ArtistMetadataResponse = {
                 readonly followers: number
                 readonly monthlyListeners: number
                 readonly worldRank: number
+            }
+            readonly profile: {
+                readonly name: string
+                readonly biography: {
+                    readonly text: string
+                }
+            }
+            readonly visuals: {
+                readonly avatarImage: {
+                    readonly sources: ImageSources
+                }
+                readonly headerImage: {
+                    readonly sources: ImageSources
+                }
+            }
+        }
+    }
+}
+
+export type DiscographyResponse = {
+    readonly data: {
+        readonly artistUnion: {
+            readonly discography: {
+                readonly all: {
+                    readonly items: {
+                        readonly releases: {
+                            readonly items: {
+                                readonly id: string
+                                readonly name: string
+                                readonly tracks: {
+                                    readonly totalCount: number
+                                }
+                                readonly date: {
+                                    readonly isoString: string
+                                }
+                                readonly coverArt: {
+                                    readonly sources: ImageSources
+                                }
+                            }[]
+                        }
+                    }[]
+                    readonly totalCount: number
+                }
             }
         }
     }
@@ -120,6 +428,32 @@ export type LyricsResponse = {
     }
 }
 
+export type WhatsNewResponse = {
+    readonly data: {
+        readonly whatsNewFeedItems: {
+            readonly items: {
+                readonly content: {
+                    readonly data: SectionItemAlbum
+                }
+            }[]
+            readonly totalCount: number
+        }
+    }
+}
+
+export type HomeResponse = {
+    readonly data: {
+        readonly home: {
+            readonly sectionContainer: {
+                readonly sections: {
+                    readonly items: Section[]
+                    readonly totalCount: number
+                }
+            }
+        }
+    }
+}
+
 export type SongMetadataResponse = {
     readonly name: string
     /** in milliseconds */
@@ -149,7 +483,7 @@ export type SongMetadataResponse = {
     }[]
 }
 
-export type PodcastMetadataResponse = {
+export type ShowMetadataResponse = {
     readonly data: {
         readonly podcastUnionV2: {
             readonly rating: {
@@ -158,6 +492,28 @@ export type PodcastMetadataResponse = {
                     readonly totalRatings: number
                 }
             }
+            readonly htmlDescription: string
+            readonly name: string
+            readonly coverArt: {
+                readonly sources: ImageSources
+            }
+            readonly __typename: "Podcast"
+        } | {
+            readonly rating: {
+                readonly averageRating: {
+                    readonly average: number
+                    readonly totalRatings: number
+                }
+            }
+            readonly publishDate: {
+                readonly isoString: string
+            }
+            readonly htmlDescription: string
+            readonly name: string
+            readonly coverArt: {
+                readonly sources: ImageSources
+            }
+            readonly __typename: "Audiobook"
         }
     }
 }
@@ -305,6 +661,16 @@ export type SeektableResponse = {
     readonly pssh_widevine: string
     readonly seektable_version: string
     readonly segments: [number, number][]
+}
+
+export type ProfileAttributesResponse = {
+    readonly data: {
+        readonly me: null | {
+            readonly profile: {
+                readonly username: string
+            }
+        }
+    }
 }
 
 export type GetLicenseResponse = {
