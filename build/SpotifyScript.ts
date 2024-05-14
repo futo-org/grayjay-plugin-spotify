@@ -25,7 +25,6 @@ import {
     type BrowsePageResponse,
     type GenrePlaylistSection,
     type ChannelTypeCapabilities,
-    type FilterGroupIDs,
     type SectionItemAlbum,
     type SectionItemPlaylist,
     type BrowseSectionResponse,
@@ -39,10 +38,19 @@ import {
     type SectionItemEpisode,
     type WhatsNewResponse,
     type WhatsNewSection,
+    type SearchResponse,
+    type SearchTypes,
+    type CollectionType,
+    type LikedEpisodesResponse,
+    type LikedTracksResponse,
+    type LibraryResponse,
+    type FollowingResponse,
+    type UriType,
+    type SpotifySource,
 } from "./types.js"
 
 const CONTENT_REGEX = /^https:\/\/open\.spotify\.com\/(track|episode)\/([a-zA-Z0-9]*)($|\/)/
-const PLAYLIST_REGEX = /^https:\/\/open\.spotify\.com\/(album|playlist)\/([a-zA-Z0-9]*)($|\/)/
+const PLAYLIST_REGEX = /^https:\/\/open\.spotify\.com\/(album|playlist|collection)\/([a-zA-Z0-9]*|your-episodes|tracks)($|\/)/
 const CHANNEL_REGEX = /^https:\/\/open\.spotify\.com\/(show|artist|user|genre|section|content-feed)\/(section|)([a-zA-Z0-9]*)($|\/)/
 const SONG_URL_PREFIX = "https://open.spotify.com/track/" as const
 const EPISODE_URL_PREFIX = "https://open.spotify.com/episode/" as const
@@ -53,6 +61,7 @@ const ALBUM_URL_PREFIX = "https://open.spotify.com/album/" as const
 const PAGE_URL_PREFIX = "https://open.spotify.com/genre/" as const
 const SECTION_URL_PREFIX = "https://open.spotify.com/section/" as const
 const PLAYLIST_URL_PREFIX = "https://open.spotify.com/playlist/" as const
+const COLLECTION_UR_PREFIX = "https://open.spotify.com/collection/" as const
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query" as const
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/" as const
 
@@ -83,37 +92,35 @@ source.disable = disable
 source.saveState = saveState
 source.getHome = getHome
 
-// source.searchSuggestions = searchSuggestions
-// source.getSearchCapabilities = getSearchCapabilities
-// source.search = search
+source.getSearchCapabilities = getSearchCapabilities
+source.search = search
 
-// source.searchChannels = searchChannels
+source.searchChannels = searchChannels
 source.isChannelUrl = isChannelUrl
 source.getChannel = getChannel
 
 source.getChannelCapabilities = getChannelCapabilities
 source.getChannelContents = getChannelContents
-// source.getSearchChannelContentsCapabilities = getSearchChannelContentsCapabilities
-// source.searchChannelContents = searchChannelContents
 
 source.isContentDetailsUrl = isContentDetailsUrl
 source.getContentDetails = getContentDetails
 
 source.isPlaylistUrl = isPlaylistUrl
-// source.searchPlaylists = searchPlaylists
+source.searchPlaylists = searchPlaylists
 source.getPlaylist = getPlaylist
 
-// source.getUserSubscriptions = getUserSubscriptions
-// source.getUserPlaylists = getUserPlaylists
+source.getUserSubscriptions = getUserSubscriptions
+source.getUserPlaylists = getUserPlaylists
 
-/*
+source.getPlaybackTracker = getPlaybackTracker
+
+
 if (IS_TESTING) {
     const assert_source: SpotifySource = {
         enable,
         disable,
         saveState,
         getHome,
-        searchSuggestions,
         search,
         getSearchCapabilities,
         isContentDetailsUrl,
@@ -122,23 +129,18 @@ if (IS_TESTING) {
         getChannel,
         getChannelContents,
         getChannelCapabilities,
-        searchChannelContents,
-        getSearchChannelContentsCapabilities,
         searchChannels,
-        getComments,
-        getSubComments,
         isPlaylistUrl,
         getPlaylist,
         searchPlaylists,
-        getLiveChatWindow,
         getUserPlaylists,
-        getUserSubscriptions
+        getUserSubscriptions,
+        getPlaybackTracker
     }
     if (source.enable === undefined) { assert_never(source.enable) }
     if (source.disable === undefined) { assert_never(source.disable) }
     if (source.saveState === undefined) { assert_never(source.saveState) }
     if (source.getHome === undefined) { assert_never(source.getHome) }
-    if (source.searchSuggestions === undefined) { assert_never(source.searchSuggestions) }
     if (source.search === undefined) { assert_never(source.search) }
     if (source.getSearchCapabilities === undefined) { assert_never(source.getSearchCapabilities) }
     if (source.isContentDetailsUrl === undefined) { assert_never(source.isContentDetailsUrl) }
@@ -147,22 +149,17 @@ if (IS_TESTING) {
     if (source.getChannel === undefined) { assert_never(source.getChannel) }
     if (source.getChannelContents === undefined) { assert_never(source.getChannelContents) }
     if (source.getChannelCapabilities === undefined) { assert_never(source.getChannelCapabilities) }
-    if (source.searchChannelContents === undefined) { assert_never(source.searchChannelContents) }
-    if (source.getSearchChannelContentsCapabilities === undefined) { assert_never(source.getSearchChannelContentsCapabilities) }
     if (source.searchChannels === undefined) { assert_never(source.searchChannels) }
-    if (source.getComments === undefined) { assert_never(source.getComments) }
-    if (source.getSubComments === undefined) { assert_never(source.getSubComments) }
     if (source.isPlaylistUrl === undefined) { assert_never(source.isPlaylistUrl) }
     if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
     if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
-    if (source.getLiveChatWindow === undefined) { assert_never(source.getLiveChatWindow) }
     if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
     if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
+    if (source.getPlaybackTracker === undefined) { assert_never(source.getPlaybackTracker) }
     if (IS_TESTING) {
         log(assert_source)
     }
 }
-*/
 //#endregion
 
 //#region enable
@@ -382,6 +379,111 @@ function home_args(limit: number): { readonly url: string, readonly headers: { A
 }
 //#endregion
 
+//#region search
+function getSearchCapabilities() {
+    return new ResultCapabilities<string, SearchTypes>(
+        [
+            Type.Feed.Videos
+        ],
+        [],
+        []
+    )
+}
+function search(query: string, type: SearchTypes | null, order: Order | null, filters: FilterQuery<string> | null): VideoPager {
+    if (filters !== null && Object.keys(filters).length !== 0) {
+        throw new ScriptException("unreachable")
+    }
+    if (order !== null) {
+        throw new ScriptException("unreachable")
+    }
+    if (type !== null) {
+        throw new ScriptException("unreachable")
+    }
+    check_and_update_token()
+    return new SearchPager(query, 0, 100)
+}
+class SearchPager extends VideoPager {
+    private offset: number
+    constructor(
+        private readonly query: string,
+        offset: number,
+        private readonly limit: number
+    ) {
+        const { url, headers } = search_args(query, offset, limit)
+        const search_response: SearchResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        const has_more = are_more_song_and_episode_results(search_response, offset, limit)
+        super(format_song_and_episode_results(search_response), has_more)
+        this.offset = offset + limit
+    }
+    override nextPage(this: SearchPager): SearchPager {
+        const { url, headers } = search_args(this.query, this.offset, this.limit)
+        const search_response: SearchResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        this.results = format_song_and_episode_results(search_response)
+        this.hasMore = are_more_song_and_episode_results(search_response, this.offset, this.limit)
+        this.offset = this.offset + this.limit
+        return this
+    }
+    override hasMorePagers(this: SearchPager): boolean {
+        return this.hasMore
+    }
+}
+function format_song_and_episode_results(search_response: SearchResponse) {
+    return [
+        ...search_response.data.searchV2.tracksV2.items.map(function (track) {
+            const artist = track.item.data.artists.items[0]
+            if (artist === undefined) {
+                throw new ScriptException("missing artist")
+            }
+            return new PlatformVideo({
+                id: new PlatformID(PLATFORM, track.item.data.id, plugin.config.id),
+                name: track.item.data.name,
+                author: new PlatformAuthorLink(
+                    new PlatformID(PLATFORM, id_from_uri(artist.uri), plugin.config.id),
+                    artist.profile.name,
+                    `${ARTIST_URL_PREFIX}${id_from_uri(artist.uri)}`
+                ),
+                url: `${SONG_URL_PREFIX}${track.item.data.id}`,
+                thumbnails: new Thumbnails(track.item.data.albumOfTrack.coverArt.sources.map(function (image) {
+                    return new Thumbnail(image.url, image.height)
+                })),
+                duration: track.item.data.duration.totalMilliseconds / 1000,
+                viewCount: HARDCODED_ZERO,
+                isLive: false,
+                shareUrl: `${SONG_URL_PREFIX}${track.item.data.id}`,
+                datetime: HARDCODED_ZERO
+            })
+        }),
+        ...search_response.data.searchV2.episodes.items.map(function (episode) {
+            return new PlatformVideo({
+                id: new PlatformID(PLATFORM, id_from_uri(episode.data.uri), plugin.config.id),
+                name: episode.data.name,
+                author: new PlatformAuthorLink(
+                    new PlatformID(PLATFORM, id_from_uri(episode.data.podcastV2.data.uri), plugin.config.id),
+                    episode.data.podcastV2.data.name,
+                    `${ARTIST_URL_PREFIX}${id_from_uri(episode.data.podcastV2.data.uri)}`,
+                    episode.data.podcastV2.data.coverArt?.sources[0]?.url
+                ),
+                url: `${EPISODE_URL_PREFIX}${id_from_uri(episode.data.uri)}`,
+                thumbnails: new Thumbnails(episode.data.coverArt.sources.map(function (image) {
+                    return new Thumbnail(image.url, image.height)
+                })),
+                duration: episode.data.duration.totalMilliseconds / 1000,
+                viewCount: HARDCODED_ZERO,
+                isLive: false,
+                shareUrl: `${EPISODE_URL_PREFIX}${id_from_uri(episode.data.uri)}`,
+                datetime: new Date(episode.data.releaseDate.isoString).getTime() / 1000
+            })
+        })
+    ]
+}
+function are_more_song_and_episode_results(search_response: SearchResponse, current_offset: number, limit: number): boolean {
+    return search_response.data.searchV2.tracksV2.totalCount > current_offset + limit
+        || search_response.data.searchV2.episodes.totalCount > current_offset + limit
+}
+//#endregion
+
 //#region content
 // https://open.spotify.com/track/6XXxKsu3RJeN3ZvbMYrgQW
 // https://open.spotify.com/episode/3Z88ZE0i3L7AIrymrBwtqg
@@ -393,19 +495,7 @@ function getContentDetails(url: string) {
         throw new LoginRequiredException("login to listen to songs")
     }
     check_and_update_token()
-    const match_result = url.match(CONTENT_REGEX)
-    if (match_result === null) {
-        throw new ScriptException("regex error")
-    }
-    const maybe_content_type = match_result[1]
-    if (maybe_content_type === undefined) {
-        throw new ScriptException("regex error")
-    }
-    const content_type: ContentType = maybe_content_type as ContentType
-    const content_uri_id = match_result[2]
-    if (content_uri_id === undefined) {
-        throw new ScriptException("regex error")
-    }
+    const { content_uri_id, content_type } = parse_content_url(url)
     switch (content_type) {
         case "track": {
             const song_url = `${SONG_URL_PREFIX}${content_uri_id}`
@@ -718,7 +808,22 @@ function getContentDetails(url: string) {
             throw assert_exhaustive(content_type, "unreachable")
     }
 }
-
+function parse_content_url(url: string) {
+    const match_result = url.match(CONTENT_REGEX)
+    if (match_result === null) {
+        throw new ScriptException("regex error")
+    }
+    const maybe_content_type = match_result[1]
+    if (maybe_content_type === undefined) {
+        throw new ScriptException("regex error")
+    }
+    const content_type: ContentType = maybe_content_type as ContentType
+    const content_uri_id = match_result[2]
+    if (content_uri_id === undefined) {
+        throw new ScriptException("regex error")
+    }
+    return { content_uri_id, content_type }
+}
 function show_metadata_args(show_uri_id: string): { readonly url: string, readonly headers: { Authorization: string } } {
     const variables = JSON.stringify({
         uri: `spotify:show:${show_uri_id}`
@@ -847,8 +952,91 @@ function artist_metadata_args(artist_uri_id: string): { readonly url: string, re
 //#region playlists
 // https://open.spotify.com/album/6BzxX6zkDsYKFJ04ziU5xQ
 // https://open.spotify.com/playlist/37i9dQZF1E38112qhvV3BT
+// https://open.spotify.com/collection/your-episodes
 function isPlaylistUrl(url: string): boolean {
     return PLAYLIST_REGEX.test(url)
+}
+function searchPlaylists(query: string): PlaylistPager {
+    check_and_update_token()
+    return new SpotifyPlaylistsPager(query, 0, 10)
+}
+class SpotifyPlaylistsPager extends PlaylistPager {
+    private offset: number
+    constructor(
+        private readonly query: string,
+        offset: number,
+        private readonly limit: number
+    ) {
+        const { url, headers } = search_args(query, offset, limit)
+        const search_response: SearchResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        const has_more = are_more_playlist_results(search_response, offset, limit)
+        super(format_playlist_results(search_response), has_more)
+        this.offset = offset + limit
+    }
+    override nextPage(this: SpotifyPlaylistsPager): SpotifyPlaylistsPager {
+        const { url, headers } = search_args(this.query, this.offset, this.limit)
+        const search_response: SearchResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        this.results = format_playlist_results(search_response)
+        this.hasMore = are_more_playlist_results(search_response, this.offset, this.limit)
+        this.offset = this.offset + this.limit
+        return this
+    }
+    override hasMorePagers(this: SpotifyPlaylistsPager): boolean {
+        return this.hasMore
+    }
+}
+function format_playlist_results(search_response: SearchResponse) {
+    return [
+        ...search_response.data.searchV2.albumsV2.items.map(function (album) {
+            const album_artist = album.data.artists.items[0]
+            if (album_artist === undefined) {
+                throw new ScriptException("missing album artist")
+            }
+            return new PlatformPlaylist({
+                id: new PlatformID(PLATFORM, id_from_uri(album.data.uri), plugin.config.id),
+                name: album.data.name,
+                author: new PlatformAuthorLink(
+                    new PlatformID(PLATFORM, id_from_uri(album_artist.uri), plugin.config.id),
+                    album_artist.profile.name,
+                    `${ARTIST_URL_PREFIX}${id_from_uri(album_artist.uri)}`
+                ),
+                datetime: new Date(album.data.date.year, 0).getTime() / 1000,
+                url: `${ALBUM_URL_PREFIX}${id_from_uri(album.data.uri)}`,
+                // TODO load this some other way videoCount?: number
+                thumbnail: album.data.coverArt.sources[0]?.url ?? HARDCODED_EMPTY_STRING
+            })
+        }),
+        ...search_response.data.searchV2.playlists.items.map(function (playlist) {
+            const created_iso = playlist.data.attributes.find(function (attribute) {
+                return attribute.key === "created"
+            })?.value
+            const platform_playlist = {
+                id: new PlatformID(PLATFORM, id_from_uri(playlist.data.uri), plugin.config.id),
+                name: playlist.data.name,
+                author: new PlatformAuthorLink(
+                    new PlatformID(PLATFORM, playlist.data.ownerV2.data.username, plugin.config.id),
+                    playlist.data.ownerV2.data.name,
+                    `${USER_URL_PREFIX}${playlist.data.ownerV2.data.username}`
+                ),
+                url: `${PLAYLIST_URL_PREFIX}${id_from_uri(playlist.data.uri)}`,
+                // TODO load this some other way videoCount?: number
+                thumbnail: playlist.data.images.items[0]?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
+            }
+            if (created_iso === undefined) {
+                return new PlatformPlaylist(platform_playlist)
+            }
+            return new PlatformPlaylist({
+                ...platform_playlist,
+                datetime: new Date(created_iso).getTime() / 1000,
+            })
+        })
+    ]
+}
+function are_more_playlist_results(search_response: SearchResponse, current_offset: number, limit: number): boolean {
+    return search_response.data.searchV2.albumsV2.totalCount > current_offset + limit
+        || search_response.data.searchV2.playlists.totalCount > current_offset + limit
 }
 function getPlaylist(url: string): PlatformPlaylistDetails {
     check_and_update_token()
@@ -922,10 +1110,172 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
                 contents: new SpotifyPlaylistPager(playlist_uri_id, offset, pagination_limit, playlist_response)
             })
         }
+        case "collection": {
+            if (!bridge.isLoggedIn()) {
+                throw new LoginRequiredException("login to open collections")
+            }
+            const collection_type: CollectionType = playlist_uri_id as CollectionType
+            switch (collection_type) {
+                case "your-episodes": {
+                    const limit = 50
+                    const { url, headers } = liked_episodes_args(0, limit)
+                    const response: LikedEpisodesResponse = JSON.parse(local_http.GET(url, headers, false).body)
+                    const username = local_state.username
+                    if (username === undefined) {
+                        throw new ScriptException("unreachable")
+                    }
+                    return new PlatformPlaylistDetails({
+                        id: new PlatformID(PLATFORM, collection_type, plugin.config.id),
+                        name: "Your Episodes",
+                        author: new PlatformAuthorLink(
+                            new PlatformID(PLATFORM, username, plugin.config.id),
+                            username, // TODO replace this with the signed in user's display name
+                            `${USER_URL_PREFIX}${username}`
+                        ),
+                        url: "https://open.spotify.com/collection/your-episodes",
+                        videoCount: response.data.me.library.episodes.totalCount,
+                        contents: new LikedEpisodesPager(0, limit, response)
+                    })
+                }
+                case "tracks": {
+                    const limit = 50
+                    const { url, headers } = liked_songs_args(0, limit)
+                    const response: LikedTracksResponse = JSON.parse(local_http.GET(url, headers, false).body)
+                    const username = local_state.username
+                    if (username === undefined) {
+                        throw new ScriptException("unreachable")
+                    }
+                    return new PlatformPlaylistDetails({
+                        id: new PlatformID(PLATFORM, collection_type, plugin.config.id),
+                        name: "Liked Songs",
+                        author: new PlatformAuthorLink(
+                            new PlatformID(PLATFORM, username, plugin.config.id),
+                            username, // TODO replace this with the signed in user's display name
+                            `${USER_URL_PREFIX}${username}`
+                        ),
+                        url: "https://open.spotify.com/collection/tracks",
+                        videoCount: response.data.me.library.tracks.totalCount,
+                        contents: new LikedTracksPager(0, limit, response)
+                    })
+                }
+                default:
+                    throw assert_exhaustive(collection_type, "unreachable")
+            }
+
+        }
         default: {
             throw assert_exhaustive(playlist_type, "unreachable")
         }
     }
+}
+class LikedEpisodesPager extends VideoPager {
+    private offset: number
+    private readonly total_tracks: number
+    constructor(
+        offset: number,
+        private readonly pagination_limit: number,
+        collection_response: LikedEpisodesResponse
+    ) {
+        const total_tracks = collection_response.data.me.library.episodes.totalCount
+
+        const episodes = format_collection_episodes(collection_response)
+
+        super(episodes, total_tracks > offset + pagination_limit)
+        this.offset = offset + pagination_limit
+        this.total_tracks = total_tracks
+    }
+    override nextPage(this: LikedEpisodesPager): LikedEpisodesPager {
+        const { url, headers } = liked_episodes_args(this.offset, this.pagination_limit)
+        const response: LikedEpisodesResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        const episodes = format_collection_episodes(response)
+        this.results = episodes
+        this.hasMore = this.total_tracks > this.offset + this.pagination_limit
+        this.offset += this.pagination_limit
+        return this
+    }
+    override hasMorePagers(this: LikedEpisodesPager): boolean {
+        return this.hasMore
+    }
+}
+function format_collection_episodes(response: LikedEpisodesResponse) {
+    return response.data.me.library.episodes.items.map(function (episode) {
+        return new PlatformVideo({
+            id: new PlatformID(PLATFORM, id_from_uri(episode.episode._uri), plugin.config.id),
+            name: episode.episode.data.name,
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, id_from_uri(episode.episode.data.podcastV2.data.uri), plugin.config.id),
+                episode.episode.data.podcastV2.data.name,
+                `${SHOW_URL_PREFIX}${id_from_uri(episode.episode.data.podcastV2.data.uri)}`,
+                episode.episode.data.podcastV2.data.coverArt?.sources[0]?.url
+            ),
+            datetime: new Date(episode.episode.data.releaseDate.isoString).getTime() / 1000,
+            url: `${EPISODE_URL_PREFIX}${id_from_uri(episode.episode._uri)}`,
+            thumbnails: new Thumbnails(episode.episode.data.coverArt.sources.map(function (image) {
+                return new Thumbnail(image.url, image.height)
+            })),
+            duration: episode.episode.data.duration.totalMilliseconds / 1000,
+            viewCount: HARDCODED_ZERO,
+            isLive: false,
+            shareUrl: `${EPISODE_URL_PREFIX}${id_from_uri(episode.episode._uri)}`
+        })
+    })
+}
+class LikedTracksPager extends VideoPager {
+    private offset: number
+    private readonly total_tracks: number
+    constructor(
+        offset: number,
+        private readonly pagination_limit: number,
+        collection_response: LikedTracksResponse
+    ) {
+        const total_tracks = collection_response.data.me.library.tracks.totalCount
+
+        const episodes = format_collection_tracks(collection_response)
+
+        super(episodes, total_tracks > offset + pagination_limit)
+        this.offset = offset + pagination_limit
+        this.total_tracks = total_tracks
+    }
+    override nextPage(this: LikedTracksPager): LikedTracksPager {
+        const { url, headers } = liked_songs_args(this.offset, this.pagination_limit)
+        const response: LikedTracksResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        const episodes = format_collection_tracks(response)
+        this.results = episodes
+        this.hasMore = this.total_tracks > this.offset + this.pagination_limit
+        this.offset += this.pagination_limit
+        return this
+    }
+    override hasMorePagers(this: LikedTracksPager): boolean {
+        return this.hasMore
+    }
+}
+function format_collection_tracks(response: LikedTracksResponse) {
+    return response.data.me.library.tracks.items.map(function (track) {
+        const artist = track.track.data.artists.items[0]
+        if (artist === undefined) {
+            throw new ScriptException("missing song artist")
+        }
+        return new PlatformVideo({
+            id: new PlatformID(PLATFORM, id_from_uri(track.track._uri), plugin.config.id),
+            name: track.track.data.name,
+            author: new PlatformAuthorLink(
+                new PlatformID(PLATFORM, id_from_uri(artist.uri), plugin.config.id),
+                artist.profile.name,
+                `${ARTIST_URL_PREFIX}${id_from_uri(artist.uri)}`,
+            ),
+            datetime: HARDCODED_ZERO,
+            url: `${SONG_URL_PREFIX}${id_from_uri(track.track._uri)}`,
+            thumbnails: new Thumbnails(track.track.data.albumOfTrack.coverArt.sources.map(function (image) {
+                return new Thumbnail(image.url, image.height)
+            })),
+            duration: track.track.data.duration.totalMilliseconds / 1000,
+            viewCount: HARDCODED_ZERO,
+            isLive: false,
+            shareUrl: `${SONG_URL_PREFIX}${id_from_uri(track.track._uri)}`
+        })
+    })
 }
 class SpotifyPlaylistPager extends VideoPager {
     private offset: number
@@ -1170,6 +1520,133 @@ function album_metadata_args(album_uri_id: string, offset: number, limit: number
 function isChannelUrl(url: string): boolean {
     return CHANNEL_REGEX.test(url)
 }
+function searchChannels(query: string): ChannelPager {
+    check_and_update_token()
+    return new SpotifyChannelPager(query, 0, 10)
+}
+class SpotifyChannelPager extends ChannelPager {
+    private offset: number
+    constructor(
+        private readonly query: string,
+        offset: number,
+        private readonly limit: number
+    ) {
+        const { url, headers } = search_args(query, offset, limit)
+        const search_response: SearchResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        const has_more = are_more_channel_results(search_response, offset, limit)
+        super(format_channel_results(search_response), has_more)
+        this.offset = offset + limit
+    }
+    override nextPage(this: SpotifyChannelPager): SpotifyChannelPager {
+        const { url, headers } = search_args(this.query, this.offset, this.limit)
+        const search_response: SearchResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        this.results = format_channel_results(search_response)
+        this.hasMore = are_more_channel_results(search_response, this.offset, this.limit)
+        this.offset = this.offset + this.limit
+        return this
+    }
+    override hasMorePagers(this: SpotifyChannelPager): boolean {
+        return this.hasMore
+    }
+}
+function are_more_channel_results(search_response: SearchResponse, current_offset: number, limit: number): boolean {
+    return search_response.data.searchV2.artists.totalCount > current_offset + limit
+        || search_response.data.searchV2.podcasts.totalCount > current_offset + limit
+        || search_response.data.searchV2.audiobooks.totalCount > current_offset + limit
+        || search_response.data.searchV2.users.totalCount > current_offset + limit
+        || search_response.data.searchV2.genres.totalCount > current_offset + limit
+}
+function format_channel_results(search_response: SearchResponse): PlatformChannel[] {
+    return [
+        ...search_response.data.searchV2.artists.items.map(function (artist) {
+            const thumbnail = artist.data.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
+            return new PlatformChannel({
+                id: new PlatformID(PLATFORM, id_from_uri(artist.data.uri), plugin.config.id),
+                name: artist.data.profile.name,
+                thumbnail,
+                url: `${ARTIST_URL_PREFIX}${id_from_uri(artist.data.uri)}`
+            })
+        }),
+        ...search_response.data.searchV2.podcasts.items.map(function (podcasts) {
+            const thumbnail = podcasts.data.coverArt.sources[0]?.url
+            if (thumbnail === undefined) {
+                throw new ScriptException("missing podcast cover image")
+            }
+            return new PlatformChannel({
+                id: new PlatformID(PLATFORM, id_from_uri(podcasts.data.uri), plugin.config.id),
+                name: podcasts.data.name,
+                thumbnail,
+                url: `${SHOW_URL_PREFIX}${id_from_uri(podcasts.data.uri)}`
+            })
+        }),
+        ...search_response.data.searchV2.audiobooks.items.map(function (audiobook) {
+            const thumbnail = audiobook.data.coverArt.sources[0]?.url
+            if (thumbnail === undefined) {
+                throw new ScriptException("missing audiobook cover image")
+            }
+            return new PlatformChannel({
+                id: new PlatformID(PLATFORM, id_from_uri(audiobook.data.uri), plugin.config.id),
+                name: audiobook.data.name,
+                thumbnail,
+                url: `${SHOW_URL_PREFIX}${id_from_uri(audiobook.data.uri)}`
+            })
+        }),
+        ...search_response.data.searchV2.users.items.map(function (user) {
+            const thumbnail = user.data.avatar?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
+            return new PlatformChannel({
+                id: new PlatformID(PLATFORM, user.data.username, plugin.config.id),
+                name: user.data.displayName,
+                thumbnail,
+                url: `${USER_URL_PREFIX}${user.data.username}`
+            })
+        }),
+        ...search_response.data.searchV2.genres.items.map(function (genre) {
+            const thumbnail = genre.data.image.sources[0]?.url
+            if (thumbnail === undefined) {
+                throw new ScriptException("missing genre cover image")
+            }
+            return new PlatformChannel({
+                id: new PlatformID(PLATFORM, id_from_uri(genre.data.uri), plugin.config.id),
+                name: genre.data.name,
+                thumbnail,
+                url: `${PAGE_URL_PREFIX}${id_from_uri(genre.data.uri)}`
+            })
+        }),
+    ]
+}
+/**
+ * 
+ * @param query 
+ * @param offset 
+ * @param limit really only works set to 10
+ * @returns 
+ */
+function search_args(query: string, offset: number, limit: number): { readonly url: string, readonly headers: { Authorization: string } } {
+    const variables = JSON.stringify({
+        searchTerm: query,
+        offset,
+        // really only works set to 10
+        limit,
+        numberOfTopResults: 5,
+        includeAudiobooks: true,
+        includeArtistHasConcertsField: false,
+        includePreReleases: true,
+        includeLocalConcertsField: false
+    })
+    const extensions = JSON.stringify({
+        persistedQuery: {
+            version: 1,
+            sha256Hash: "7a60179c5d6b6c385e849438efb1398392ef159d82f2ad7158be5e80bf7817a9"
+        }
+    })
+    const url = new URL(QUERY_URL)
+    url.searchParams.set("operationName", "searchDesktop")
+    url.searchParams.set("variables", variables)
+    url.searchParams.set("extensions", extensions)
+    return { url: url.toString(), headers: { Authorization: `Bearer ${local_state.bearer_token}` } }
+}
 function getChannel(url: string): PlatformChannel {
     check_and_update_token()
     const { channel_type, channel_uri_id } = parse_channel_url(url)
@@ -1293,11 +1770,8 @@ function getChannel(url: string): PlatformChannel {
         case "artist":
             const { url, headers } = artist_metadata_args(channel_uri_id)
             const artist_metadata_response: ArtistMetadataResponse = JSON.parse(local_http.GET(url, headers, false).body)
-            const thumbnail = artist_metadata_response.data.artistUnion.visuals.avatarImage.sources[0]?.url
-            const banner = artist_metadata_response.data.artistUnion.visuals.headerImage.sources[0]?.url
-            if (thumbnail === undefined) {
-                throw new ScriptException("missing artist thumbnail")
-            }
+            const thumbnail = artist_metadata_response.data.artistUnion.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
+            const banner = artist_metadata_response.data.artistUnion.visuals.headerImage?.sources[0]?.url
             const channel = {
                 id: new PlatformID(PLATFORM, channel_uri_id, plugin.config.id),
                 name: artist_metadata_response.data.artistUnion.profile.name,
@@ -1375,7 +1849,7 @@ function parse_channel_url(url: string) {
 
 //#region channel content
 function getChannelCapabilities() {
-    return new ResultCapabilities<FilterGroupIDs, ChannelTypeCapabilities>(
+    return new ResultCapabilities<string, ChannelTypeCapabilities>(
         [
             Type.Feed.Playlists,
             Type.Feed.Albums,
@@ -1387,7 +1861,7 @@ function getChannelCapabilities() {
         []
     )
 }
-function getChannelContents(url: string, type: ChannelTypeCapabilities | null, order: Order | null, filters: FilterQuery<FilterGroupIDs> | null): ContentPager {
+function getChannelContents(url: string, type: ChannelTypeCapabilities | null, order: Order | null, filters: FilterQuery<string> | null): ContentPager {
     if (filters !== null) {
         throw new ScriptException("unreachable")
     }
@@ -1577,10 +2051,7 @@ class ArtistDiscographyPager extends PlaylistPager {
         const metadata_response: ArtistMetadataResponse = JSON.parse(responses[0].body)
         const discography_response: DiscographyResponse = JSON.parse(responses[1].body)
 
-        const avatar_url = metadata_response.data.artistUnion.visuals.avatarImage.sources[0]?.url
-        if (avatar_url === undefined) {
-            throw new ScriptException("unreachable")
-        }
+        const avatar_url = metadata_response.data.artistUnion.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
         const author = new PlatformAuthorLink(
             new PlatformID(PLATFORM, artist_uri_id, plugin.config.id),
             metadata_response.data.artistUnion.profile.name,
@@ -1713,7 +2184,7 @@ function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | S
                     new PlatformID(PLATFORM, id_from_uri(section.podcastV2.data.uri), plugin.config.id),
                     section.podcastV2.data.name,
                     `${SHOW_URL_PREFIX}${id_from_uri(section.podcastV2.data.uri)}`,
-                    section.podcastV2.data.coverArt.sources[0]?.url
+                    section.podcastV2.data.coverArt?.sources[0]?.url
                 ),
                 url: `${EPISODE_URL_PREFIX}${section.id}`,
                 thumbnails: new Thumbnails(section.coverArt.sources.map(function (source) {
@@ -2018,6 +2489,228 @@ function format_user_playlists(playlists_response: UserPlaylistsResponse) {
 }
 //#endregion
 
+//#region other
+function getUserPlaylists() {
+    let playlists: string[] = []
+    let more = true
+    let offset = 0
+    const limit = 50
+    while (more) {
+        const { url, headers } = library_args(offset, limit)
+        const library_response: LibraryResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        playlists = [
+            ...playlists,
+            ...library_response.data.me.libraryV3.items.flatMap(function (library_item) {
+                const item = library_item.item.data
+                switch (item.__typename) {
+                    case "Album":
+                        return `${ALBUM_URL_PREFIX}${id_from_uri(item.uri)}`
+                    case "Playlist":
+                        return `${PLAYLIST_URL_PREFIX}${id_from_uri(item.uri)}`
+                    case "PseudoPlaylist":
+                        return `${COLLECTION_UR_PREFIX}${id_from_uri(item.uri)}`
+                    case "Audiobook":
+                        return []
+                    case "Podcast":
+                        return []
+                    case "Artist":
+                        return []
+                    default:
+                        throw assert_exhaustive(item, "unreachable")
+                }
+            })
+        ]
+
+        if (library_response.data.me.libraryV3.totalCount <= offset + limit) {
+            more = false
+        }
+        offset += limit
+    }
+    return playlists
+}
+function library_args(offset: number, limit: number): { readonly url: string, readonly headers: { Authorization: string } } {
+    const variables = JSON.stringify({
+        filters: [],
+        order: null,
+        textFilter: "",
+        features: ["LIKED_SONGS", "YOUR_EPISODES", "PRERELEASES"],
+        limit,
+        offset,
+        flatten: false,
+        expandedFolders: [],
+        folderUri: null,
+        includeFoldersWhenFlattening: true,
+        withCuration: false
+    })
+    const extensions = JSON.stringify({
+        persistedQuery: {
+            version: 1,
+            sha256Hash: "cb996f38c4e0f98c53e46546e0b58f1ed34ab6c31cd00d17698af6ce2ac0f3af"
+        }
+    })
+    const url = new URL(QUERY_URL)
+    url.searchParams.set("operationName", "libraryV3")
+    url.searchParams.set("variables", variables)
+    url.searchParams.set("extensions", extensions)
+    return { url: url.toString(), headers: { Authorization: `Bearer ${local_state.bearer_token}` } }
+}
+function liked_songs_args(offset: number, limit: number): { readonly url: string, readonly headers: { Authorization: string } } {
+    const variables = JSON.stringify({
+        limit,
+        offset
+    })
+    const extensions = JSON.stringify({
+        persistedQuery: {
+            version: 1,
+            sha256Hash: "f6cdd87d7fc8598e4e7500fbacd4f661b0c4aea382fe28540aeb4cb7ea4d76c8"
+        }
+    })
+    const url = new URL(QUERY_URL)
+    url.searchParams.set("operationName", "fetchLibraryTracks")
+    url.searchParams.set("variables", variables)
+    url.searchParams.set("extensions", extensions)
+    return { url: url.toString(), headers: { Authorization: `Bearer ${local_state.bearer_token}` } }
+}
+function liked_episodes_args(offset: number, limit: number): { readonly url: string, readonly headers: { Authorization: string } } {
+    const variables = JSON.stringify({
+        limit,
+        offset
+    })
+    const extensions = JSON.stringify({
+        persistedQuery: {
+            version: 1,
+            sha256Hash: "f6cdd87d7fc8598e4e7500fbacd4f661b0c4aea382fe28540aeb4cb7ea4d76c8"
+        }
+    })
+    const url = new URL(QUERY_URL)
+    url.searchParams.set("operationName", "fetchLibraryEpisodes")
+    url.searchParams.set("variables", variables)
+    url.searchParams.set("extensions", extensions)
+    return { url: url.toString(), headers: { Authorization: `Bearer ${local_state.bearer_token}` } }
+}
+function following_args() {
+    const url = `https://spclient.wg.spotify.com/user-profile-view/v3/profile/${local_state.username}/following`
+    return { url, headers: { Authorization: `Bearer ${local_state.bearer_token}` } }
+}
+function getUserSubscriptions(): string[] {
+    const { url, headers } = following_args()
+    const following_response: FollowingResponse = JSON.parse(local_http.GET(url, headers, false).body)
+    let following: string[] = following_response.profiles.map(function (profile) {
+        const { uri_id, uri_type } = parse_uri(profile.uri)
+        if (uri_type === "artist") {
+            return `${ARTIST_URL_PREFIX}${uri_id}`
+        } else if (uri_type === "user") {
+            return `${USER_URL_PREFIX}${uri_id}`
+        }
+        throw new ScriptException("unreachable")
+    })
+    let more = true
+    let offset = 0
+    const limit = 50
+    while (more) {
+        const { url, headers } = library_args(offset, limit)
+        const library_response: LibraryResponse = JSON.parse(local_http.GET(url, headers, false).body)
+
+        following = [
+            ...following,
+            ...library_response.data.me.libraryV3.items.flatMap(function (library_item) {
+                const item = library_item.item.data
+                switch (item.__typename) {
+                    case "Album":
+                        return []
+                    case "Playlist":
+                        return []
+                    case "PseudoPlaylist":
+                        return []
+                    case "Audiobook":
+                        return `${SHOW_URL_PREFIX}${id_from_uri(item.uri)}`
+                    case "Podcast":
+                        return `${SHOW_URL_PREFIX}${id_from_uri(item.uri)}`
+                    case "Artist":
+                        return `${ARTIST_URL_PREFIX}${id_from_uri(item.uri)}`
+                    default:
+                        throw assert_exhaustive(item, "unreachable")
+                }
+            })
+        ]
+
+        if (library_response.data.me.libraryV3.totalCount <= offset + limit) {
+            more = false
+        }
+        offset += limit
+    }
+    return following
+}
+function getPlaybackTracker(url: string): PlaybackTracker {
+    const { content_uri_id } = parse_content_url(url)
+    return new SpotifyPlaybackTracker(content_uri_id)
+}
+// let socket: SocketResult
+class SpotifyPlaybackTracker extends PlaybackTracker {
+    private play_recorded = false
+    private socket: SocketResult
+    constructor(private readonly uri_id: string) {
+        const interval_seconds = 10
+        super(interval_seconds * 1000)
+
+        check_and_update_token()
+        // const url = `wss://gue1-dealer.spotify.com/?access_token=${local_state.bearer_token}`
+        let url = "wss://echo.websocket.in"
+        this.socket = http.socket(url, {}, false)
+        // socket.connect({
+        //     open() {
+        //         log("open")
+        //         socket.send(JSON.stringify({
+        //             type: "ping"
+        //         }))
+        //     },
+        //     closed(code, reason) {
+        //         console.log(code.toString())
+        //         console.log(reason)
+        //     },
+        //     closing(code, reason) {
+        //         console.log(code.toString())
+        //         console.log(reason)
+        //     },
+        //     message(msg) {
+        //         log(msg)
+        //         socket.close()
+        //     },
+        //     failure(exception) {
+        //         log("failure")
+        //         console.log(exception)
+        //     }
+        // })
+    }
+    override onInit(seconds: number): void {
+        log("connecting to websocket")
+        log(seconds.toString())
+
+    }
+    override onProgress(seconds: number, is_playing: boolean): void {
+        if (this.play_recorded) {
+            return
+        }
+        if (!this.socket.isOpen && seconds > 10) {
+            log("actually connecting")
+
+
+
+        }
+        if (seconds > 30) {
+            log(`recording play of ${this.uri_id}`)
+            this.play_recorded = true
+
+            // this.socket.send(JSON.stringify({
+            //     type: "ping"
+            // }))
+        }
+        log(is_playing.toString())
+    }
+}
+//#endregion
+
 //#region utilities
 function url_from_image_uri(image_uri: string) {
     const match_result = image_uri.match(/^spotify:(image|mosaic):([0-9a-zA-Z:]*)$/)
@@ -2042,15 +2735,23 @@ function url_from_image_uri(image_uri: string) {
     }
 }
 function id_from_uri(uri: string): string {
-    const match_result = uri.match(/^spotify:(show|album|track|artist|playlist|section|episode|user):([0-9a-zA-Z]*)$/)
+    return parse_uri(uri).uri_id
+}
+function parse_uri(uri: string) {
+    const match_result = uri.match(/^spotify:(show|album|track|artist|playlist|section|episode|user|genre|collection):([0-9a-zA-Z]*|tracks|your-episodes)$/)
     if (match_result === null) {
         throw new ScriptException("regex error")
     }
+    const maybe_type = match_result[1]
+    if (maybe_type === undefined) {
+        throw new ScriptException("regex error")
+    }
+    const uri_type: UriType = maybe_type as UriType
     const uri_id = match_result[2]
     if (uri_id === undefined) {
         throw new ScriptException("regex error")
     }
-    return uri_id
+    return { uri_id, uri_type }
 }
 /**
  * Converts seconds to the timestamp format used in WebVTT
@@ -2154,5 +2855,6 @@ function get_gid(song_uri_id: string) {
 // export {
     get_gid,
     assert_never,
-    log_passthrough
+    log_passthrough,
+    getPlaybackTracker
 }

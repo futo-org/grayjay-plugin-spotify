@@ -11,10 +11,12 @@
 - [ ]   video podcast support (requires a better websocket api)
 - [ ]   support offline playback
 - [ ]   similar to bilibili i think we need to add id prefixes or suffixes because there could be collision
-- [ ]   add search support
-- [ ]   add user playlists and follows support
 - [ ]   add playback tracking support
 - [ ]   add offline playback for widevine support
+- [ ]   doesn't play :( https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
+- [ ]   trascript issue https://open.spotify.com/episode/2T9MigKPyg21TWR3juW4z5
+- [ ]   section genre urls should still work https://open.spotify.com/genre/0JQ5IMCbQBLpWesTpzW2kY
+- [ ]   errors for some reason https://open.spotify.com/track/4EUQXLipplO2v9mVaqQtjc
 
 ## Grayjay Bugs
 - [ ]   RatingScaler doesn't work

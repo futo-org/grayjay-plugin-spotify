@@ -1,12 +1,19 @@
 //#region custom types
 export type Settings = unknown
 
-export type SpotifySource = Required<Source<
-    { readonly something: "unknown" },
-    FilterGroupIDs,
+export type SpotifySource = Required<Omit<Source<
+    { readonly [key: string]: string },
+    string,
     ChannelTypeCapabilities,
-    "POSTS",
-    "POSTS"
+    SearchTypes,
+    FeedType
+>,
+    "searchSuggestions"
+    | "getComments"
+    | "getSubComments"
+    | "getSearchChannelContentsCapabilities"
+    | "getLiveChatWindow"
+    | "searchChannelContents"
 >>
 
 export type State = {
@@ -17,8 +24,8 @@ export type State = {
     readonly username?: string
     readonly country?: string
 }
-export type FilterGroupIDs = ""
 export type ChannelTypeCapabilities = typeof Type.Feed.Playlists | typeof Type.Feed.Albums | typeof Type.Feed.Videos
+export type SearchTypes = typeof Type.Feed.Videos
 
 export type Section = GenrePlaylistSection
     | HomePlaylistSection
@@ -49,9 +56,191 @@ export type WhatsNewSection = {
 
 //#region JSON types
 export type ContentType = "track" | "episode"
-export type PlaylistType = "album" | "playlist"
+export type PlaylistType = "album" | "playlist" | "collection"
+export type CollectionType = "your-episodes" | "tracks"
 export type ChannelType = "show" | "user" | "artist" | "genre" | "section" | "content-feed"
+export type UriType = "show" | "album" | "track" | "artist" | "playlist" | "section" | "episode" | "user" | "genre" | "collection"
 
+export type FollowingResponse = {
+    readonly profiles: {
+        readonly uri: string
+    }[]
+}
+export type LikedTracksResponse = {
+    readonly data: {
+        readonly me: {
+            readonly library: {
+                readonly tracks: {
+                    readonly totalCount: number
+                    readonly items: {
+                        readonly track: {
+                            readonly data: SectionItemTrack
+                            readonly _uri: string
+                        }
+                    }[]
+                }
+            }
+        }
+    }
+}
+export type LikedEpisodesResponse = {
+    readonly data: {
+        readonly me: {
+            readonly library: {
+                readonly episodes: {
+                    readonly totalCount: number
+                    readonly items: {
+                        readonly episode: {
+                            readonly data: SectionItemEpisode
+                            readonly _uri: string
+                        }
+                    }[]
+                }
+            }
+        }
+    }
+}
+export type LibraryResponse = {
+    readonly data: {
+        readonly me: {
+            readonly libraryV3: {
+                readonly totalCount: number
+                readonly items: {
+                    readonly item: {
+                        readonly data: SectionItemPodcast | SectionItemPlaylist | SectionItemAlbum | SectionItemArtist | SectionItemAudiobook | SectionItemPseudoPlaylist
+                    }
+                }[]
+            }
+        }
+    }
+}
+export type SectionItemPseudoPlaylist = {
+    readonly uri: string
+    readonly __typename: "PseudoPlaylist"
+}
+export type SectionItemTrack = {
+    readonly __typename: "Track"
+    readonly name: string
+    readonly id: string
+    readonly duration: {
+        readonly totalMilliseconds: number
+    }
+    readonly artists: {
+        readonly items: {
+            readonly uri: string
+            readonly profile: {
+                readonly name: string
+            }
+        }[]
+    }
+    readonly albumOfTrack: {
+        readonly coverArt: {
+            readonly sources: ImageSources
+        }
+    }
+}
+export type SearchResponse = {
+    readonly data: {
+        readonly searchV2: {
+            readonly albumsV2: {
+                readonly items: {
+                    readonly data: SectionItemAlbum
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly artists: {
+                readonly items: {
+                    readonly data: SectionItemArtist
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly audiobooks: {
+                readonly items: {
+                    readonly data: SectionItemAudiobook
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly episodes: {
+                readonly items: {
+                    readonly data: SectionItemEpisode
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly genres: {
+                readonly items: {
+                    readonly data: SectionItemGenre
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly playlists: {
+                readonly items: {
+                    readonly data: SectionItemPlaylist
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly podcasts: {
+                readonly items: {
+                    readonly data: SectionItemPodcast
+
+                }[]
+                readonly totalCount: number
+            }
+            readonly tracksV2: {
+                readonly items: {
+                    readonly item: {
+                        readonly data: SectionItemTrack
+                    }
+                }[]
+                readonly totalCount: number
+            }
+            readonly users: {
+                readonly items: {
+                    readonly data: SectionItemUser
+
+                }[]
+                readonly totalCount: number
+            }
+        }
+    }
+}
+export type SectionItemUser = {
+    readonly __typename: "User"
+    readonly displayName: string
+    readonly avatar: null | {
+        readonly sources: ImageSources
+    }
+    readonly username: string
+}
+export type SectionItemPodcast = {
+    readonly __typename: "Podcast"
+    readonly uri: string
+    readonly name: string
+    readonly coverArt: {
+        sources: ImageSources
+    }
+}
+export type SectionItemAudiobook = {
+    readonly __typename: "Audiobook"
+    readonly uri: string
+    readonly name: string
+    readonly coverArt: {
+        sources: ImageSources
+    }
+}
+export type SectionItemGenre = {
+    readonly __typename: "Genre"
+    readonly uri: string
+    readonly name: string
+    readonly image: {
+        sources: ImageSources
+    }
+}
 export type SectionItemEpisode = {
     readonly __typename: "Episode"
     readonly coverArt: {
@@ -61,13 +250,14 @@ export type SectionItemEpisode = {
         readonly totalMilliseconds: number
     }
     readonly id: string
+    readonly uri: string
     readonly name: string
     readonly podcastV2: {
         readonly data: {
             readonly name: string
             /** in this format "spotify:show:5VzFvh1JlEhBMS6ZHZ8CNO" */
             readonly uri: string
-            readonly coverArt: {
+            readonly coverArt: null | {
                 readonly sources: ImageSources
             }
         }
@@ -77,7 +267,6 @@ export type SectionItemEpisode = {
     }
 }
 export type SectionItemPlaylist = {
-
     readonly attributes: {
         key: "created" | "madeFor.username"
         value: string
@@ -87,6 +276,10 @@ export type SectionItemPlaylist = {
     readonly ownerV2: {
         readonly data: {
             readonly name: string
+            readonly username: string
+            readonly avatar: {
+                readonly sources: ImageSources
+            }
         }
     }
     readonly images: {
@@ -105,7 +298,6 @@ export type SectionItemNotFound = {
     readonly __typename: "NotFound"
 }
 export type SectionItemAlbum = {
-
     readonly name: string
     readonly coverArt: {
         readonly sources: ImageSources
@@ -118,14 +310,24 @@ export type SectionItemAlbum = {
             readonly uri: string
         }[]
     }
+    readonly date: {
+        readonly year: number
+    }
     readonly uri: string
     readonly __typename: "Album"
 }
-
 export type SectionItemArtist = {
-    readonly __typename: "Artist",
+    readonly __typename: "Artist"
+    readonly profile: {
+        readonly name: string
+    }
+    readonly visuals: {
+        readonly avatarImage: null | {
+            readonly sources: ImageSources
+        }
+    }
+    readonly uri: string
 }
-
 export type GenrePlaylistSection = {
     readonly data: {
         readonly __typename: "BrowseGenericSectionData"
@@ -351,10 +553,10 @@ export type ArtistMetadataResponse = {
                 }
             }
             readonly visuals: {
-                readonly avatarImage: {
+                readonly avatarImage: null | {
                     readonly sources: ImageSources
                 }
-                readonly headerImage: {
+                readonly headerImage: null | {
                     readonly sources: ImageSources
                 }
             }
