@@ -50,6 +50,7 @@ import {
     type RecentlyPlayedUris,
     type RecentlyPlayedDetails,
     type RecentlyPlayedSection,
+    type SectionItemPseudoPlaylist,
 } from "./types.js"
 
 const CONTENT_REGEX = /^https:\/\/open\.spotify\.com\/(track|episode)\/([a-zA-Z0-9]*)($|\/)/
@@ -348,11 +349,31 @@ function getHome() {
             sectionItems: {
                 items: recently_played_response.data.lookup.flatMap(function (section_item) {
                     if (section_item.__typename === "UnknownTypeWrapper") {
-                        return []
+                        if (section_item._uri !== "spotify:user:kaioflorenzo:collection") {
+                            throw new ScriptException("unexpected uri")
+                        }
+                        return {
+                            content: {
+                                data: {
+                                    image: {
+                                        sources: [{
+                                            "height": 640,
+                                            "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                                            "width": 640
+                                        }]
+                                    },
+                                    name: "Liked Songs",
+                                    __typename: "PseudoPlaylist",
+                                    uri: "spotify:collection:tracks"
+                                },
+                                __typename: "LibraryPseudoPlaylistResponseWrapper"
+                            }
+                        }
                     }
                     return {
                         content: {
-                            data: section_item.data
+                            data: section_item.data,
+                            __typename: section_item.__typename
                         }
                     }
                 })
@@ -1733,9 +1754,19 @@ function getChannel(url: string): PlatformChannel {
                 }))
                 const recently_played_response: RecentlyPlayedDetails = JSON.parse(local_http.GET(url, headers, false).body)
 
-                const section_items = recently_played_response.data.lookup.flatMap(function (section_item) {
+                const section_items = recently_played_response.data.lookup.flatMap(function (section_item): (SectionItemAlbum | SectionItemPlaylist | SectionItemPseudoPlaylist)[] {
                     if (section_item.__typename === "UnknownTypeWrapper") {
-                        return []
+                        return [{
+                            image: {
+                                sources: [{
+                                    "height": 640,
+                                    "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                                }]
+                            },
+                            name: "Liked Songs",
+                            __typename: "PseudoPlaylist",
+                            uri: "spotify:collection:tracks"
+                        }]
                     }
                     const section_item_content = section_item.data
                     if (section_item_content.__typename === "Playlist" || section_item_content.__typename === "Album") {
@@ -1747,9 +1778,18 @@ function getChannel(url: string): PlatformChannel {
                 if (first_section_item === undefined) {
                     throw new ScriptException("unreachable")
                 }
-                const first_section_first_playlist_image = first_section_item.__typename === "Album"
-                    ? first_section_item.coverArt.sources[0]?.url
-                    : first_section_item.images.items[0]?.sources[0]?.url
+                const first_section_first_playlist_image = function (section_item) {
+                    switch (section_item.__typename) {
+                        case "Album":
+                            return section_item.coverArt.sources[0]?.url
+                        case "Playlist":
+                            return section_item.images.items[0]?.sources[0]?.url
+                        case "PseudoPlaylist":
+                            return section_item.image.sources[0]?.url
+                        default:
+                            throw assert_exhaustive(section_item)
+                    }
+                }(first_section_item)
 
                 if (first_section_first_playlist_image === undefined) {
                     throw new ScriptException("missing playlist image")
@@ -1781,6 +1821,9 @@ function getChannel(url: string): PlatformChannel {
 
 
             const section_items = sections[0]?.sectionItems.items.flatMap(function (section_item) {
+                if (section_item.content.__typename === "UnknownType") {
+                    return []
+                }
                 const section_item_content = section_item.content.data
                 if (section_item_content.__typename === "Playlist" || section_item_content.__typename === "Album") {
                     return [section_item_content]
@@ -2022,9 +2065,19 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
                 }))
                 const recently_played_response: RecentlyPlayedDetails = JSON.parse(local_http.GET(url, headers, false).body)
 
-                const section_items = recently_played_response.data.lookup.flatMap(function (section_item) {
+                const section_items = recently_played_response.data.lookup.flatMap(function (section_item): (SectionItemAlbum | SectionItemPlaylist | SectionItemPseudoPlaylist)[] {
                     if (section_item.__typename === "UnknownTypeWrapper") {
-                        return []
+                        return [{
+                            image: {
+                                sources: [{
+                                    "height": 640,
+                                    "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                                }]
+                            },
+                            name: "Liked Songs",
+                            __typename: "PseudoPlaylist",
+                            uri: "spotify:collection:tracks"
+                        }]
                     }
                     const section_item_content = section_item.data
                     if (section_item_content.__typename === "Playlist" || section_item_content.__typename === "Album") {
@@ -2037,9 +2090,18 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
                 if (first_section_item === undefined) {
                     throw new ScriptException("unreachable")
                 }
-                const first_section_first_playlist_image = first_section_item.__typename === "Album"
-                    ? first_section_item.coverArt.sources[0]?.url
-                    : first_section_item.images.items[0]?.sources[0]?.url
+                const first_section_first_playlist_image = function (section_item) {
+                    switch (section_item.__typename) {
+                        case "Album":
+                            return section_item.coverArt.sources[0]?.url
+                        case "Playlist":
+                            return section_item.images.items[0]?.sources[0]?.url
+                        case "PseudoPlaylist":
+                            return section_item.image.sources[0]?.url
+                        default:
+                            throw assert_exhaustive(section_item)
+                    }
+                }(first_section_item)
 
                 if (first_section_first_playlist_image === undefined) {
                     throw new ScriptException("missing playlist image")
@@ -2133,10 +2195,15 @@ function format_page(sections: Section[], display_limit: number): (PlatformPlayl
         const section_name = "text" in section_title ? section_title.text : section_title.transformedLabel
 
         const section_items = section.sectionItems.items.flatMap(function (section_item) {
+            if (section_item.content.__typename === "UnknownType") {
+                return []
+            }
             const section_item_content = section_item.content.data
+
             if (section_item_content.__typename === "Playlist"
                 || section_item_content.__typename === "Album"
                 || section_item_content.__typename === "Episode"
+                || section_item_content.__typename === "PseudoPlaylist"
             ) {
                 return [section_item_content]
             }
@@ -2150,25 +2217,18 @@ function format_page(sections: Section[], display_limit: number): (PlatformPlayl
             throw new ScriptException("no sections")
         }
 
-
         const author = function () {
             if ("section_url" in section) {
                 return new PlatformAuthorLink(
                     new PlatformID(PLATFORM, section.section_url, plugin.config.id),
                     section_name,
-                    section.section_url,
-                    first_section_item.__typename === "Playlist"
-                        ? first_section_item.images.items[0]?.sources[0]?.url
-                        : first_section_item.coverArt.sources[0]?.url
+                    section.section_url
                 )
             }
             return new PlatformAuthorLink(
                 new PlatformID(PLATFORM, id_from_uri(section.uri), plugin.config.id),
                 section_name,
-                `${SECTION_URL_PREFIX}${id_from_uri(section.uri)}`,
-                first_section_item.__typename === "Playlist"
-                    ? first_section_item.images.items[0]?.sources[0]?.url
-                    : first_section_item.coverArt.sources[0]?.url
+                `${SECTION_URL_PREFIX}${id_from_uri(section.uri)}`
             )
         }()
         return section_items.map(function (playlist) {
@@ -2272,7 +2332,7 @@ function discography_args(
     url.searchParams.set("extensions", extensions)
     return { url: url.toString(), headers: { Authorization: `Bearer ${local_state.bearer_token}` } }
 }
-function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | SectionItemEpisode, section_as_author: PlatformAuthorLink): PlatformVideo | PlatformPlaylist {
+function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | SectionItemEpisode | SectionItemPseudoPlaylist, section_as_author: PlatformAuthorLink): PlatformVideo | PlatformPlaylist {
     switch (section.__typename) {
         case "Album":
             {
@@ -2356,6 +2416,22 @@ function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | S
                 /** unix time */
                 datetime: new Date(section.releaseDate.isoString).getTime() / 1000
             })
+        }
+        case "PseudoPlaylist": {
+            const image_url = section.image.sources[0]?.url
+            if (image_url === undefined) {
+                throw new ScriptException("missing playlist thumbnail")
+            }
+            const author = section_as_author
+            const platform_playlist = {
+                id: new PlatformID(PLATFORM, id_from_uri(section.uri), plugin.config.id),
+                url: `${COLLECTION_UR_PREFIX}${id_from_uri(section.uri)}`,
+                name: section.name,
+                author,
+                // TODO load some other way videoCount:
+                thumbnail: image_url
+            }
+            return new PlatformPlaylist(platform_playlist)
         }
         default:
             throw assert_exhaustive(section, "unreachable")
@@ -2801,6 +2877,31 @@ function getUserSubscriptions(): string[] {
     }
     return following
 }
+const ht = "undefined" != typeof crypto && "function" == typeof crypto.getRandomValues
+const gt = (e: number) => ht ? function (e) {
+    return crypto.getRandomValues(new Uint8Array(e))
+}(e) : function (e) {
+    const t = []
+    for (; t.length < e;)
+        t.push(Math.floor(256 * Math.random()))
+    return t
+}(e)
+const ft = (e: number) => {
+    const t = Math.ceil(e / 2)
+    return function (e) {
+        let t = ""
+        for (let n = 0; n < e.length; n++) {
+            const i = e[n]
+            if (i === undefined) {
+                throw new ScriptException("issue generating device id")
+            }
+            i < 16 && (t += "0"),
+                t += i.toString(16)
+        }
+        return t
+    }(gt(t))
+}
+const vt = () => ft(40)
 function getPlaybackTracker(url: string): PlaybackTracker {
     const { content_uri_id } = parse_content_url(url)
     check_and_update_token()
@@ -2811,6 +2912,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
     private playback_id = ""
     private play_recorded = false
     private socket_closed = false
+    private another_one = false
     private in_between = false
     private transfered = false
     // private device_active = false
@@ -2819,11 +2921,30 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
     private connection_id = ""
     private socket: SocketResult
     private init_seconds = 0
-    private readonly device_id = "b27bde830fd81dbff77339f7ed344db1a40"
-    private readonly uid = "da3986443f3dbf5a0881"
-    private readonly duration = 303440
+    private readonly device_id = vt()
+    // private readonly uid = "ccf999d7241e13521c2e"
+    // private readonly track_uri = "spotify:track:4pbG9SUmWIvsROVLF0zF9s"
+    // private readonly album_uri_id = "7vEJAtP3KgKSpOHVgwm3Eh"
+    // private readonly track_album_index = 3
+    // private readonly duration = 145746
+    private readonly uid = "1347b3deaefee32b7d2b"
+    private readonly track_uri = "spotify:track:2tQG2nFEHhWsH05kFKlC4A"
+    private readonly album_uri_id = "0BaIaHcyBXuOWeM4Aas4EW"
+    private readonly track_album_index = 2
+    private readonly duration = 109750
+    // private readonly uid = "296cf850453478739645"
+    // private readonly track_uri = "spotify:track:77uEkHMJ6EnOZjd1Hh9Tty"
+    // private readonly album_uri_id = "6wOJyevNYXevqTZCn6Xk5T"
+    // private readonly track_album_index = 4
+    // private readonly duration = 171989
+    // private readonly uid = "8167260601e9aab35d02"
+    // private readonly track_uri = "spotify:track:4Op5aSB6JSVzp7Jhi5hQKp"
+    // private readonly album_uri_id = "7skmDXP36SNveM5XKFoLuK"
+    // private readonly track_album_index = 5
+    // private readonly duration = 111266
+    private seq_num = 3
     constructor(private readonly uri_id: string) {
-        const interval_seconds = 10
+        const interval_seconds = 4
         super(interval_seconds * 1000)
 
         // this.device_id = "b27bde830fd81dbff77339f7ed344db1a40"
@@ -2959,41 +3080,41 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                     //     }
                     // }),
                     JSON.stringify(
-                        { "device": { "brand": "spotify", "capabilities": { "change_volume": true, "enable_play_token": true, "supports_file_media_type": true, "play_token_lost_behavior": "pause", "disable_connect": false, "audio_podcasts": true, "video_playback": true, "manifest_formats": ["file_ids_mp3", "file_urls_mp3", "manifest_urls_audio_ad", "manifest_ids_video", "file_urls_external", "file_ids_mp4", "file_ids_mp4_dual", "manifest_urls_audio_ad"] }, "device_id": this.device_id, "device_type": "computer", "metadata": {}, "model": "web_player", "name": "Web Player (Grayjay)", "platform_identifier": "web_player linux undefined;chrome 125.0.0.0;desktop", "is_group": false }, "outro_endcontent_snooping": false, "connection_id": this.connection_id, "client_version": "harmony:4.42.0-2780565f", "volume": 65535 }
+                        { "device": { "brand": "spotify", "capabilities": { "change_volume": true, "enable_play_token": true, "supports_file_media_type": true, "play_token_lost_behavior": "pause", "disable_connect": false, "audio_podcasts": true, "video_playback": true, "manifest_formats": ["file_ids_mp3", "file_urls_mp3", "manifest_urls_audio_ad", "manifest_ids_video", "file_urls_external", "file_ids_mp4", "file_ids_mp4_dual", "manifest_urls_audio_ad"] }, "device_id": this.device_id, "device_type": "computer", "metadata": {}, "model": "web_player", "name": "Web Player (Chrome)", "platform_identifier": "web_player linux undefined;chrome 125.0.0.0;desktop", "is_group": false }, "outro_endcontent_snooping": false, "connection_id": this.connection_id, "client_version": "harmony:4.42.0-2780565f", "volume": 65535 }
                     ),
                     { Authorization: `Bearer ${local_state.bearer_token}` },
                     false
                 )
                 log(response)
 
-                // log("grabbing device info")
-                // const another_register_thing = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id}`
+                log("grabbing devices info")
+                const another_register_thing = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
 
-                // const response1 = local_http.requestWithBody(
-                //     "PUT",
-                //     another_register_thing,
-                //     JSON.stringify({
-                //         "member_type": "CONNECT_STATE",
-                //         "device":
-                //         {
-                //             "device_info":
-                //             {
-                //                 "capabilities": {
-                //                     "can_be_player": false,
-                //                     "hidden": true,
-                //                     "needs_full_player_state": true
-                //                 }
-                //             }
-                //         }
-                //     }),
-                //     {
-                //         Authorization: `Bearer ${local_state.bearer_token}`,
-                //         "X-Spotify-Connection-Id": this.connection_id
-                //     },
-                //     false)
+                const response1 = local_http.requestWithBody(
+                    "PUT",
+                    another_register_thing,
+                    JSON.stringify({
+                        "member_type": "CONNECT_STATE",
+                        "device":
+                        {
+                            "device_info":
+                            {
+                                "capabilities": {
+                                    "can_be_player": false,
+                                    "hidden": true,
+                                    "needs_full_player_state": true
+                                }
+                            }
+                        }
+                    }),
+                    {
+                        Authorization: `Bearer ${local_state.bearer_token}`,
+                        "X-Spotify-Connection-Id": this.connection_id
+                    },
+                    false)
 
-                // const device_info = JSON.parse(response1.body)
-                // log(device_info)
+                const device_info = JSON.parse(response1.body)
+                log(device_info)
 
 
                 // this.device_active = "active_device_id" in device_info
@@ -3030,21 +3151,118 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
     }
     override onProgress(seconds: number, is_playing: boolean): void {
 
+        //{"seq_num":15,"state_ref":{"state_machine_id":"ChQ0Jnocbbg7kDx3WOjgNutMUyLLzA","state_id":"8425aeb0fef142d597d1b578c5f31061","paused":true},"sub_state":{"playback_speed":0,"position":33535,"duration":307927,"media_type":"AUDIO","bitrate":128000,"audio_quality":"HIGH","format":10},"previous_position":33535,"debug_source":"pause"}
+
         if (this.socket_closed) {
             return
         }
 
-        if (seconds - this.init_seconds > 50 && is_playing) {
+
+        if (seconds - this.init_seconds > 70 && is_playing) {
+
             this.socket.close()
             this.socket_closed = true
             log("done closing")
+        }
+
+        if (this.another_one) {
+            return
+        }
+
+
+
+        if (seconds - this.init_seconds > 60 && is_playing) {
+
+            log("deleting device")
+            const url = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
+            const response = local_http.request("DELETE", url, { Authorization: `Bearer ${local_state.bearer_token}` }, false)
+            log(response)
+
+            const url2 = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}`
+            const response2 = local_http.requestWithBody("DELETE", url2, JSON.stringify(
+                {"seq_num":this.seq_num,"state_ref":{"state_machine_id":this.state_machine_id,"state_id":this.playback_id,"paused":false},"sub_state":{"playback_speed":1,"position":40786,"duration":this.duration,"media_type":"AUDIO","bitrate":128000,"audio_quality":"HIGH","format":10},"previous_position":40786,"debug_source":"deregister"}
+            ) ,{ Authorization: `Bearer ${local_state.bearer_token}` }, false)
+            log(response2)
+
+            /*
+            log("trigger finish")
+
+            const initial_state_machine_id = this.state_machine_id
+            const register_playback_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
+            const response1: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                "PUT",
+                register_playback_url,
+                // JSON.stringify({
+                //     debug_source: "played_threshold_reached",
+
+                // }),
+                JSON.stringify(
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": this.duration - 158, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": this.duration - 158, "playback_stats": { "ms_total_est": this.duration, "ms_metadata_duration": 0, "ms_manifest_latency": 196, "ms_latency": 1188, "start_offset_ms": 14, "ms_initial_buffering": 451, "ms_initial_rebuffer": 451, "ms_seek_rebuffering": 0, "ms_stalled": 0, "max_ms_seek_rebuffering": 0, "max_ms_stalled": 0, "n_stalls": 0, "n_rendition_upgrade": 0, "n_rendition_downgrade": 0, "bps_bandwidth_max": 0, "bps_bandwidth_min": 0, "bps_bandwidth_avg": 0, "audiocodec": "mp4", "start_bitrate": 128000, "time_weighted_bitrate": 0, "key_system": "widevine", "ms_key_latency": 1796, "total_bytes": 3494928, "local_time_ms": Date.now(), "n_dropped_video_frames": 0, "n_total_video_frames": 0, "resolution_max": 0, "resolution_min": 0, "strategy": "MSE" }, "debug_source": "track_data_finalized" }
+                ),
+                { Authorization: `Bearer ${local_state.bearer_token}` },
+                false).body)
+            log(response1)
+            this.seq_num += 1
+            this.state_machine_id = response1.state_machine.state_machine_id
+
+
+
+
+            log("triggering before play")
+            const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
+            const response2: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                "PUT",
+                before_playling_url,
+                // JSON.stringify({
+                //     debug_source: "played_threshold_reached",
+
+                // }),
+                JSON.stringify(
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": initial_state_machine_id, "state_id": this.playback_id, "paused": true }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "before_track_load" }
+                ),
+                { Authorization: `Bearer ${local_state.bearer_token}` },
+                false).body)
+            log(response2)
+            this.state_machine_id = response2.state_machine.state_machine_id
+            this.seq_num += 1
+
+            // let res = 0
+            // for(let i = 0; i<10000;i++){
+            //     res = (res+1)*2/2
+            // }
+
+
+            log("speed change 1")
+            // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
+            const response3: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                "PUT",
+                before_playling_url,
+                // JSON.stringify({
+                //     debug_source: "played_threshold_reached",
+
+                // }),
+                JSON.stringify(
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": initial_state_machine_id, "state_id": this.playback_id, "paused": true }, "sub_state": { "playback_speed": 0, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "speed_changed" }
+                ),
+                { Authorization: `Bearer ${local_state.bearer_token}` },
+                false).body)
+            log(response3)
+            this.seq_num += 1
+
+            */
+
+
+
+            this.another_one = true
+
+
         }
 
         if (this.in_between) {
             return
         }
 
-        if (seconds - this.init_seconds > 35 && is_playing) {
+        if (seconds - this.init_seconds > 50 && is_playing) {
             if (!this.socket.isOpen) {
                 log("socket not open!")
             } else {
@@ -3061,19 +3279,25 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
 
                 // }),
                 JSON.stringify(
-                    { "seq_num": 6, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 39536, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 39536, "debug_source": "played_threshold_reached" }
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 30786, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 30786, "debug_source": "played_threshold_reached" }
                 ),
                 { Authorization: `Bearer ${local_state.bearer_token}` },
                 false).body)
             log(response)
+            this.seq_num += 1
             this.state_machine_id = response.state_machine.state_machine_id
+
+
+
             this.in_between = true
+
+
         }
 
         if (this.play_recorded) {
             return
         }
-        if (seconds - this.init_seconds > 20 && is_playing) {
+        if (seconds - this.init_seconds > 15 && is_playing) {
             this.play_recorded = true
 
 
@@ -3103,7 +3327,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
             //       return e || pn()
             //   }
 
-
+            const initial_state_machine_id = this.state_machine_id
 
             log("triggering before play")
             const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
@@ -3115,30 +3339,42 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
 
                 // }),
                 JSON.stringify(
-                    { "seq_num": 3, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "before_track_load" }
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "before_track_load" }
                 ),
                 { Authorization: `Bearer ${local_state.bearer_token}` },
                 false).body)
             log(response1)
             this.state_machine_id = response1.state_machine.state_machine_id
+            this.seq_num += 1
 
-            // log("speed change 1")
-            // // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            // const response3: {readonly state_machine: { readonly state_machine_id: string}} = JSON.parse(local_http.requestWithBody(
-            //     "PUT",
-            //     before_playling_url,
-            //     // JSON.stringify({
-            //     //     debug_source: "played_threshold_reached",
+            // let res = 0
+            // for(let i = 0; i<10000;i++){
+            //     res = (res+1)*2/2
+            // }
 
-            //     // }),
-            //     JSON.stringify(
-            //         { "seq_num": 4, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 0, "position": 0, "duration": duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "speed_changed" }
-            //     ),
-            //     { Authorization: `Bearer ${local_state.bearer_token}` },
-            //     false).body)
-            // log(response3)
+
+            log("speed change 1")
+            // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
+            const response3: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                "PUT",
+                before_playling_url,
+                // JSON.stringify({
+                //     debug_source: "played_threshold_reached",
+
+                // }),
+                JSON.stringify(
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": initial_state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 0, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "speed_changed" }
+                ),
+                { Authorization: `Bearer ${local_state.bearer_token}` },
+                false).body)
+            log(response3)
+            this.seq_num += 1
             // this.state_machine_id = response3.state_machine.state_machine_id
 
+            // res = 0
+            // for(let i = 0; i<10000;i++){
+            //     res = (res+1)*2/2
+            // }
 
             log("speedchange 2")
             // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
@@ -3150,12 +3386,18 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
 
                 // }),
                 JSON.stringify(
-                    { "seq_num": 4, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 0, "debug_source": "speed_changed" }
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 0, "debug_source": "speed_changed" }
                 ),
                 { Authorization: `Bearer ${local_state.bearer_token}` },
                 false).body)
             log(response4)
             this.state_machine_id = response4.state_machine.state_machine_id
+            this.seq_num += 1
+
+            // res = 0
+            // for(let i = 0; i<10000;i++){
+            //     res = (res+1)*2/2
+            // }
 
 
             log("triggering play start")
@@ -3168,12 +3410,13 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
 
                 // }),
                 JSON.stringify(
-                    { "seq_num": 5, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 1360, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 1360, "debug_source": "started_playing" }
+                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 1360, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 1360, "debug_source": "started_playing" }
                 ),
                 { Authorization: `Bearer ${local_state.bearer_token}` },
                 false).body)
             log(response)
             this.state_machine_id = response.state_machine.state_machine_id
+            this.seq_num += 1
             // this.start_triggered = true
 
 
@@ -3195,22 +3438,22 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         "context": {
                             // "uri": "spotify:track:6CbPF34njo6PpWYTFQrMZN",
                             // "url": "context://spotify:track:6CbPF34njo6PpWYTFQrMZN",
-                            uri: "spotify:album:7aJuG4TFXa2hmE4z1yxc3n",
-                            url: "context://spotify:album:7aJuG4TFXa2hmE4z1yxc3n",
+                            uri: `spotify:album:${this.album_uri_id}`,
+                            url: `context://spotify:album:${this.album_uri_id}`,
                             "metadata": {}
                         },
                         "play_origin": {
                             "feature_identifier": "album",
                             // "feature_identifier": "track",
-                            "feature_version": "web-player_2024-05-23_1716493666036_b53deef",
+                            "feature_version": "web-player_2024-05-24_1716563359844_29d0a3b",
                             "referrer_identifier": "your_library"
                         },
                         "options": {
                             "license": "on-demand",
                             "skip_to": {
-                                track_index: 2,
+                                track_index: this.track_album_index,
                                 track_uid: this.uid,
-                                track_uri: "spotify:track:7BRD7x5pt8Lqa1eGYC4dzj"
+                                track_uri: this.track_uri
                             },
                             "player_options_override": {}
                         },
@@ -3287,6 +3530,7 @@ function id_from_uri(uri: string): string {
 function parse_uri(uri: string) {
     const match_result = uri.match(/^spotify:(show|album|track|artist|playlist|section|episode|user|genre|collection):([0-9a-zA-Z]*|tracks|your-episodes)$/)
     if (match_result === null) {
+        log(uri)
         throw new ScriptException("regex error")
     }
     const maybe_type = match_result[1]

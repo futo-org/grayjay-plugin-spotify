@@ -47,7 +47,10 @@ export type RecentlyPlayedSection = {
     readonly sectionItems: {
         readonly items: {
             readonly content: {
-                readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemPodcast | SectionItemArtist
+                readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemPodcast | SectionItemArtist | SectionItemPseudoPlaylist
+                readonly __typename: "PlaylistResponseWrapper" | "AlbumResponseWrapper" | "LibraryPseudoPlaylistResponseWrapper"
+            } | {
+                readonly __typename: "UnknownType"
             }
         }[]
     }
@@ -64,6 +67,9 @@ export type WhatsNewSection = {
         readonly items: {
             readonly content: {
                 readonly data: SectionItemAlbum
+                readonly __typename: "PlaylistResponseWrapper" | "AlbumResponseWrapper"
+            } | {
+                readonly __typename: "UnknownType"
             }
         }[]
         readonly totalCount: number
@@ -132,8 +138,13 @@ export type LibraryResponse = {
     }
 }
 export type SectionItemPseudoPlaylist = {
-    readonly uri: string
+    readonly image: {
+        readonly sources: ImageSources
+    }
+    readonly name: string
     readonly __typename: "PseudoPlaylist"
+    readonly uri: string
+
 }
 export type SectionItemTrack = {
     readonly __typename: "Track"
@@ -357,6 +368,9 @@ export type GenrePlaylistSection = {
         readonly items: {
             readonly content: {
                 readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemNotFound | SectionItemEpisode
+                readonly __typename: "PlaylistResponseWrapper" | "AlbumResponseWrapper"
+            } | {
+                readonly __typename: "UnknownType"
             }
         }[]
         readonly totalCount: number
@@ -375,6 +389,9 @@ export type HomePlaylistSection = {
         readonly items: {
             readonly content: {
                 readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemNotFound | SectionItemEpisode
+                readonly __typename: "PlaylistResponseWrapper" | "AlbumResponseWrapper"
+            } | {
+                readonly __typename: "UnknownType"
             }
         }[]
         readonly totalCount: number
@@ -437,6 +454,7 @@ export type RecentlyPlayedDetails = {
             readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemPodcast
         } | {
             readonly __typename: "UnknownTypeWrapper"
+            readonly _uri: string
         })[]
     }
 }
@@ -670,6 +688,7 @@ export type WhatsNewResponse = {
             readonly items: {
                 readonly content: {
                     readonly data: SectionItemAlbum
+                    readonly __typename: "AlbumResponseWrapper"
                 }
             }[]
             readonly totalCount: number
