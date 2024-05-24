@@ -35,6 +35,23 @@ export type Section = GenrePlaylistSection
         }
     }
     | WhatsNewSection
+    | RecentlyPlayedSection
+export type RecentlyPlayedSection = {
+    readonly data: {
+        readonly __typename: "CustomRecentlyPlayedSectionData"
+        readonly title: {
+            readonly text: "Recently played"
+        }
+    }
+    readonly section_url: "https://open.spotify.com/genre/recently-played"
+    readonly sectionItems: {
+        readonly items: {
+            readonly content: {
+                readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemPodcast | SectionItemArtist
+            }
+        }[]
+    }
+}
 export type WhatsNewSection = {
     readonly data: {
         readonly __typename: "WhatsNewSectionData"
@@ -277,7 +294,7 @@ export type SectionItemPlaylist = {
         readonly data: {
             readonly name: string
             readonly username: string
-            readonly avatar: {
+            readonly avatar?: {
                 readonly sources: ImageSources
             }
         }
@@ -404,6 +421,23 @@ export type BrowseSectionResponse = {
             }
         }
 
+    }
+}
+
+export type RecentlyPlayedUris = {
+    readonly playContexts: {
+        readonly uri: string
+    }[]
+}
+
+export type RecentlyPlayedDetails = {
+    readonly data: {
+        readonly lookup: ({
+            readonly __typename: "AlbumResponseWrapper" | "PlaylistResponseWrapper"
+            readonly data: SectionItemAlbum | SectionItemPlaylist | SectionItemArtist | SectionItemPodcast
+        } | {
+            readonly __typename: "UnknownTypeWrapper"
+        })[]
     }
 }
 
