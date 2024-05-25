@@ -18,8 +18,10 @@
         https://docs.fedoraproject.org/en-US/quick-docs/using-shared-system-certificates/ for adding the root ca
         some reference offline/persistent widevine https://github.com/AnassHmida/react-native-video-drm/blob/main/android-exoplayer/src/main/java/com/brentvatne/exoplayer/DownloadTracker.java
 - [x]   (i think this is fixed) when the liked songs collection is in the recently played genre it doesn't show up in grayjay
-- [ ]   doesn't play https://open.spotify.com/track/5kIcrM3QVD4BQPFMszQnU1
-- [ ]   doesn't play :( https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
+- [ ]   androidx.media3.exoplayer.drm.DefaultDrmSessionManager$MissingSchemeDataException: Media does not support uuid: edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
+        is some weird DRM issue. happens at least for these albums
+        https://open.spotify.com/album/5koG6JeFEwcINyN1QuXyiq
+        https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
 
 ## Grayjay Bugs
 - [ ]   RatingScaler doesn't work

@@ -547,7 +547,7 @@ function getContentDetails(url) {
             const file_manifest = JSON.parse(second_results[0].body);
             const artist_metadata_response = JSON.parse(second_results[1].body);
             const duration = track_metadata_response.data.trackUnion.duration.totalMilliseconds / 1000;
-            const file_url = file_manifest.cdnurl[0];
+            const file_url = file_manifest.cdnurl[1];
             if (file_url === undefined) {
                 throw new ScriptException("unreachable");
             }

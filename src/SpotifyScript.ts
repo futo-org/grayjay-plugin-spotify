@@ -641,10 +641,11 @@ function getContentDetails(url: string) {
 
             const duration = track_metadata_response.data.trackUnion.duration.totalMilliseconds / 1000
 
-            const file_url = file_manifest.cdnurl[0]
+            const file_url = file_manifest.cdnurl[1]
             if (file_url === undefined) {
                 throw new ScriptException("unreachable")
             }
+      
             const codecs = "mp4a.40.2"
             const audio_sources = [new AudioUrlWidevineSource({
                 //audio/mp4; codecs="mp4a.40.2
