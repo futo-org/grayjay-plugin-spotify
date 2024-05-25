@@ -23,7 +23,8 @@
         "gue1-spclient.spotify.com",
         "seektables.scdn.co",
         "api-partner.spotify.com",
-        "apresolve.spotify.com"
+        "apresolve.spotify.com",
+        "open.spotifycdn.com"
     ],
     "authentication": {
 		"loginUrl": "https://accounts.spotify.com/en/login",

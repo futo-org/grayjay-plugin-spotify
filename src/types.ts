@@ -17,6 +17,7 @@ export type SpotifySource = Required<Omit<Source<
 >>
 
 export type State = {
+    readonly feature_version: string
     readonly bearer_token: string
     readonly expiration_timestamp_ms: number
     readonly license_uri: string

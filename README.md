@@ -3,10 +3,8 @@
 2.  load `BiliBiliConfig.json` into Grayjay
 
 ## TO-DO
-- [ ]   check that share urls/uris work and share into the spotify app
 - [ ]   an entire podcast has a rating. maybe give the episode the podcast rating use this to load it https://api-partner.spotify.com/pathfinder/v1/query?operationName=queryShowMetadataV2&variables=%7B%22uri%22%3A%22spotify%3Ashow%3A5VzFvh1JlEhBMS6ZHZ8CNO%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%225fb034a236a3e8301e9eca0e23def3341ed66c891ea2d4fea374c091dc4b4a6a%22%7D%7D
 - [ ]   there is data about the number of people following a podcast somewhere that shows up in the mobile app
-- [ ]   test the logged out version of the plugin
 - [ ]   music video support (not available in the us)
 - [ ]   video podcast support (requires a better websocket api)
 - [ ]   similar to bilibili i think we need to add id prefixes or suffixes because there could be collision
@@ -17,12 +15,12 @@
         wireshark tips https://www.netresec.com/?page=PolarProxy to unencrypt
         https://docs.fedoraproject.org/en-US/quick-docs/using-shared-system-certificates/ for adding the root ca
         some reference offline/persistent widevine https://github.com/AnassHmida/react-native-video-drm/blob/main/android-exoplayer/src/main/java/com/brentvatne/exoplayer/DownloadTracker.java
-- [x]   (i think this is fixed) when the liked songs collection is in the recently played genre it doesn't show up in grayjay
 - [ ]   androidx.media3.exoplayer.drm.DefaultDrmSessionManager$MissingSchemeDataException: Media does not support uuid: edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
         is some weird DRM issue. happens at least for these albums
         https://open.spotify.com/album/5koG6JeFEwcINyN1QuXyiq
         https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
-- [ ]   playback tracking Hardcoded TODOs. platform_identifier client_version feature_version
+- [x]   (i think this is fixed) when the liked songs collection is in the recently played genre it doesn't show up in grayjay
+- [ ]   is this perma? web-player.169ab096
 
 ## Grayjay Bugs
 - [ ]   RatingScaler doesn't work

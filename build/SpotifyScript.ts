@@ -71,6 +71,9 @@ const IMAGE_URL_PREFIX = "https://i.scdn.co/image/" as const
 
 const PLATFORM = "Spotify" as const
 // const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0" as const
+const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop" as const
+const SPOTIFY_CONNECT_NAME = "Web Player (Grayjay)" as const
+const CLIENT_VERSION = "harmony:4.42.0-2780565f" as const
 
 const HARDCODED_ZERO = 0 as const
 const HARDCODED_EMPTY_STRING = "" as const
@@ -190,6 +193,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
         // download license uri and get logged in user
         const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0"
         const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D"
+        const web_player_js_url = "https://open.spotifycdn.com/cdn/build/web-player/web-player.169ab096.js"
         const responses = local_http
             .batch()
             .GET(
@@ -202,8 +206,13 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
                 { Authorization: `Bearer ${bearer_token}` },
                 false
             )
+            .GET(
+                web_player_js_url,
+                { Authorization: `Bearer ${bearer_token}` },
+                false
+            )
             .execute()
-        if (responses[0] === undefined || responses[1] === undefined) {
+        if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
             throw new ScriptException("unreachable")
         }
 
@@ -215,7 +224,16 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
         const profile_attributes_response: ProfileAttributesResponse = JSON.parse(
             responses[1].body
         )
+        const match_result = responses[2].body.match(/"(web-player_(.*?))"/)
+        if (match_result === null) {
+            throw new ScriptException("regex error")
+        }
+        const feature_version = match_result[1]
+        if (feature_version === undefined) {
+            throw new ScriptException("regex error")
+        }
         let state: State = {
+            feature_version,
             bearer_token,
             expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
             license_uri: license_uri,
@@ -276,6 +294,7 @@ function check_and_update_token() {
     log("Spotify log: refreshing bearer token")
     const { token_response, user_data } = download_bearer_token()
     let state: State = {
+        feature_version: local_state.feature_version,
         bearer_token: token_response.accessToken,
         expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
         license_uri: local_state.license_uri,
@@ -688,7 +707,7 @@ function getContentDetails(url: string) {
                 duration,
                 viewCount: parseInt(track_metadata_response.data.trackUnion.playcount),
                 isLive: false,
-                shareUrl: song_metadata_response.canonical_uri,
+                shareUrl: song_url,
                 datetime: new Date(track_metadata_response.data.trackUnion.albumOfTrack.date.isoString).getTime() / 1000,
                 description: HARDCODED_EMPTY_STRING,
                 video: new UnMuxVideoSourceDescriptor([], audio_sources),
@@ -858,7 +877,7 @@ function getContentDetails(url: string) {
                 duration,
                 viewCount: HARDCODED_ZERO,
                 isLive: false,
-                shareUrl: episode_metadata_response.data.episodeUnionV2.uri,
+                shareUrl: episode_url,
                 datetime,
                 description: episode_metadata_response.data.episodeUnionV2.htmlDescription,
                 video: new UnMuxVideoSourceDescriptor([], audio_sources),
@@ -2619,7 +2638,7 @@ function format_chapters(chapters_response: BookChaptersResponse, author: Platfo
             duration: chapter_data.duration.totalMilliseconds / 1000,
             viewCount: HARDCODED_ZERO,
             isLive: false,
-            shareUrl: chapter_data.uri
+            shareUrl: `${EPISODE_URL_PREFIX}${id_from_uri(chapter_data.uri)}`
         })
     })
 }
@@ -2671,7 +2690,7 @@ function format_episodes(episodes_response: PodcastEpisodesResponse, author: Pla
             duration: episode_data.duration.totalMilliseconds / 1000,
             viewCount: HARDCODED_ZERO,
             isLive: false,
-            shareUrl: episode_data.uri
+            shareUrl: `${EPISODE_URL_PREFIX}${id_from_uri(episode_data.uri)}`
         })
     })
 }
@@ -3088,15 +3107,13 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                                         device_type: "computer",
                                         metadata: {},
                                         model: "web_player",
-                                        name: "Web Player (Grayjay)",
-                                        // TODO hardcoded
-                                        platform_identifier: "web_player linux undefined;chrome 125.0.0.0;desktop",
+                                        name: SPOTIFY_CONNECT_NAME,
+                                        platform_identifier: PLATFORM_IDENTIFIER,
                                         is_group: false
                                     },
                                     outro_endcontent_snooping: false,
                                     connection_id: connection_id,
-                                    // TODO hardcoded
-                                    client_version: "harmony:4.42.0-2780565f",
+                                    client_version: CLIENT_VERSION,
                                     volume: 65535
                                 }
                             ),
@@ -3139,8 +3156,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                                     },
                                     play_origin: {
                                         feature_identifier: this.feature_identifier,
-                                        // TODO hardcoded
-                                        feature_version: "web-player_2024-05-24_1716563359844_29d0a3b",
+                                        feature_version: local_state.feature_version,
                                         referrer_identifier: "your_library"
                                     },
                                     options: {
