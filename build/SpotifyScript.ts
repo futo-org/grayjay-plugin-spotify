@@ -350,7 +350,7 @@ function getHome() {
             sectionItems: {
                 items: recently_played_response.data.lookup.flatMap(function (section_item) {
                     if (section_item.__typename === "UnknownTypeWrapper") {
-                        if (section_item._uri !== "spotify:user:kaioflorenzo:collection") {
+                        if (section_item._uri !== `spotify:user:${local_state.username}:collection`) {
                             throw new ScriptException("unexpected uri")
                         }
                         return {
@@ -588,6 +588,8 @@ function getContentDetails(url: string) {
                     switch (lyrics_response.lyrics.language) {
                         case "en":
                             return "English"
+                        case "es":
+                            return "Español"
                         default:
                             throw assert_exhaustive(lyrics_response.lyrics.language, "unreachable")
                     }

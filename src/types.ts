@@ -687,7 +687,7 @@ export type TrackMetadataResponse = {
 
 export type LyricsResponse = {
     readonly lyrics: {
-        readonly language: "en"
+        readonly language: "en" |"es"
         readonly lines: {
             readonly startTimeMs: string
             readonly words: string
