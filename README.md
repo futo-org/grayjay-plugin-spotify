@@ -19,6 +19,7 @@
         is some weird DRM issue. happens at least for these albums
         https://open.spotify.com/album/5koG6JeFEwcINyN1QuXyiq
         https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
+- [ ]   maybe interleave search results
 - [x]   (i think this is fixed) when the liked songs collection is in the recently played genre it doesn't show up in grayjay
 - [ ]   is this perma? web-player.169ab096
 
