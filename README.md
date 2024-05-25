@@ -10,7 +10,6 @@
 - [ ]   music video support (not available in the us)
 - [ ]   video podcast support (requires a better websocket api)
 - [ ]   similar to bilibili i think we need to add id prefixes or suffixes because there could be collision
-- [ ]   add playback tracking support
 - [ ]   add offline playback for widevine support
         as far as i can tell this will not be possible. Spotify does not support offline playback in the 
         Web Player. Asking the ephemeral license server for a persistent license hasn't worked.
@@ -18,13 +17,9 @@
         wireshark tips https://www.netresec.com/?page=PolarProxy to unencrypt
         https://docs.fedoraproject.org/en-US/quick-docs/using-shared-system-certificates/ for adding the root ca
         some reference offline/persistent widevine https://github.com/AnassHmida/react-native-video-drm/blob/main/android-exoplayer/src/main/java/com/brentvatne/exoplayer/DownloadTracker.java
-- [ ]   doesn't play :( https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
-- [ ]   trascript issue https://open.spotify.com/episode/2T9MigKPyg21TWR3juW4z5
-- [ ]   section genre urls should still work https://open.spotify.com/genre/0JQ5IMCbQBLpWesTpzW2kY
-- [ ]   errors for some reason https://open.spotify.com/track/4EUQXLipplO2v9mVaqQtjc
+- [x]   (i think this is fixed) when the liked songs collection is in the recently played genre it doesn't show up in grayjay
 - [ ]   doesn't play https://open.spotify.com/track/5kIcrM3QVD4BQPFMszQnU1
-- [ ]   doesn't play https://open.spotify.com/track/0ROKraHEf4F02IyaudmAt6
-- [ ]   when the liked songs collection is in the recently played genre it doesn't show up in grayjay
+- [ ]   doesn't play :( https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
 
 ## Grayjay Bugs
 - [ ]   RatingScaler doesn't work
@@ -33,3 +28,4 @@
 - [ ]   there is no way to get to the creator of a playlist
 - [ ]   the pager that goes in the contents property of a playlist doesn't ever call the nextPage method
 - [ ]   the channel about section doesn't render HTML
+- [ ]   the isOpen property on WebSocket always returns false

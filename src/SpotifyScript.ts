@@ -74,6 +74,7 @@ const PLATFORM = "Spotify" as const
 
 const HARDCODED_ZERO = 0 as const
 const HARDCODED_EMPTY_STRING = "" as const
+const EMPTY_AUTHOR = new PlatformAuthorLink(new PlatformID(PLATFORM, "", plugin.config.id), "", "")
 
 const local_http = http
 // const local_utility = utility
@@ -380,7 +381,7 @@ function getHome() {
             }
         })
     }
-    const playlists = format_page(sections, 4)
+    const playlists = format_page(sections, 4, "Home")
     return new ContentPager(playlists, false)
 }
 function whats_new_args(offset: number, limit: number): { readonly url: string, readonly headers: { Authorization: string } } {
@@ -512,12 +513,12 @@ function format_song_and_episode_results(search_response: SearchResponse) {
             return new PlatformVideo({
                 id: new PlatformID(PLATFORM, id_from_uri(episode.data.uri), plugin.config.id),
                 name: episode.data.name,
-                author: new PlatformAuthorLink(
+                author: episode.data.podcastV2.data.__typename === "Podcast" ? new PlatformAuthorLink(
                     new PlatformID(PLATFORM, id_from_uri(episode.data.podcastV2.data.uri), plugin.config.id),
                     episode.data.podcastV2.data.name,
                     `${ARTIST_URL_PREFIX}${id_from_uri(episode.data.podcastV2.data.uri)}`,
                     episode.data.podcastV2.data.coverArt?.sources[0]?.url
-                ),
+                ) : EMPTY_AUTHOR,
                 url: `${EPISODE_URL_PREFIX}${id_from_uri(episode.data.uri)}`,
                 thumbnails: new Thumbnails(episode.data.coverArt.sources.map(function (image) {
                     return new Thumbnail(image.url, image.height)
@@ -526,7 +527,7 @@ function format_song_and_episode_results(search_response: SearchResponse) {
                 viewCount: HARDCODED_ZERO,
                 isLive: false,
                 shareUrl: `${EPISODE_URL_PREFIX}${id_from_uri(episode.data.uri)}`,
-                datetime: new Date(episode.data.releaseDate.isoString).getTime() / 1000
+                datetime: episode.data.releaseDate === null ? HARDCODED_ZERO : new Date(episode.data.releaseDate.isoString).getTime() / 1000
             })
         })
     ]
@@ -616,7 +617,11 @@ function getContentDetails(url: string) {
 
             const format = local_state.is_premium ? "MP4_256" : "MP4_128"
 
-            const maybe_file_id = song_metadata_response.file.find(function (file) { return file.format === format })?.file_id
+            const files = song_metadata_response.file === undefined ? song_metadata_response.alternative?.[0]?.file : song_metadata_response.file
+            if(files === undefined){
+                throw new ScriptException("missing alternative file list")
+            }
+            const maybe_file_id = files.find(function (file) { return file.format === format })?.file_id
             if (maybe_file_id === undefined) {
                 throw new ScriptException("missing expected format")
             }
@@ -770,6 +775,7 @@ function getContentDetails(url: string) {
                     return []
                 }
                 const transcript_response: TranscriptResponse = JSON.parse(results[2].body)
+
                 const subtitle_name = function () {
                     switch (transcript_response.language) {
                         case "en":
@@ -791,7 +797,7 @@ function getContentDetails(url: string) {
                         end = episode_metadata_response.data.episodeUnionV2.duration.totalMilliseconds
                     }
                     vtt_text += `${milliseconds_to_WebVTT_timestamp(section.startMs)} --> ${milliseconds_to_WebVTT_timestamp(end)}\n`
-                    vtt_text += `${section.text.sentence.text}\n`
+                    vtt_text += `${"text" in section ? section.text.sentence.text : section.fallback.sentence.text}\n`
                     vtt_text += "\n"
                 })
                 return [{
@@ -1253,6 +1259,9 @@ class LikedEpisodesPager extends VideoPager {
 }
 function format_collection_episodes(response: LikedEpisodesResponse) {
     return response.data.me.library.episodes.items.map(function (episode) {
+        if (episode.episode.data.podcastV2.data.__typename === "NotFound" || episode.episode.data.releaseDate === null) {
+            throw new ScriptException("unreachable")
+        }
         return new PlatformVideo({
             id: new PlatformID(PLATFORM, id_from_uri(episode.episode._uri), plugin.config.id),
             name: episode.episode.data.name,
@@ -2127,7 +2136,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
             if (browse_page_response.data.browse.__typename === "GenericError") {
                 throw new ScriptException("error loading genre page")
             }
-            const playlists = format_page(browse_page_response.data.browse.sections.items, limit)
+            const playlists = format_page(browse_page_response.data.browse.sections.items, limit, browse_page_response.data.browse.header.title.transformedLabel)
 
             return new ContentPager(playlists, false)
         }
@@ -2183,7 +2192,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
  * @param display_limit maximum number of items to display per section
  * @returns 
  */
-function format_page(sections: Section[], display_limit: number): (PlatformPlaylist | PlatformVideo)[] {
+function format_page(sections: Section[], display_limit: number, page_title: string): (PlatformPlaylist | PlatformVideo)[] {
     const filtered_sections = sections.flatMap(function (item): (GenrePlaylistSection | HomePlaylistSection | WhatsNewSection | RecentlyPlayedSection)[] {
         if (is_playlist_section(item)) {
             return [item]
@@ -2192,7 +2201,7 @@ function format_page(sections: Section[], display_limit: number): (PlatformPlayl
     })
     const content = filtered_sections.flatMap(function (section) {
         const section_title = section.data.title
-        const section_name = "text" in section_title ? section_title.text : section_title.transformedLabel
+        const section_name = section_title === null ? page_title : "text" in section_title ? section_title.text : section_title.transformedLabel
 
         const section_items = section.sectionItems.items.flatMap(function (section_item) {
             if (section_item.content.__typename === "UnknownType") {
@@ -2396,6 +2405,9 @@ function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | S
             return new PlatformPlaylist(platform_playlist)
         }
         case "Episode": {
+            if (section.podcastV2.data.__typename === "NotFound" || section.releaseDate === null) {
+                throw new ScriptException("unreachable")
+            }
             return new PlatformVideo({
                 id: new PlatformID(PLATFORM, section.id, plugin.config.id),
                 name: section.name,
@@ -2877,172 +2889,424 @@ function getUserSubscriptions(): string[] {
     }
     return following
 }
-const ht = "undefined" != typeof crypto && "function" == typeof crypto.getRandomValues
-const gt = (e: number) => ht ? function (e) {
-    return crypto.getRandomValues(new Uint8Array(e))
-}(e) : function (e) {
-    const t = []
-    for (; t.length < e;)
-        t.push(Math.floor(256 * Math.random()))
-    return t
-}(e)
-const ft = (e: number) => {
-    const t = Math.ceil(e / 2)
-    return function (e) {
-        let t = ""
-        for (let n = 0; n < e.length; n++) {
-            const i = e[n]
-            if (i === undefined) {
-                throw new ScriptException("issue generating device id")
-            }
-            i < 16 && (t += "0"),
-                t += i.toString(16)
-        }
-        return t
-    }(gt(t))
-}
-const vt = () => ft(40)
+
 function getPlaybackTracker(url: string): PlaybackTracker {
-    const { content_uri_id } = parse_content_url(url)
+    const { content_uri_id, content_type } = parse_content_url(url)
     check_and_update_token()
-    return new SpotifyPlaybackTracker(content_uri_id)
+    return new SpotifyPlaybackTracker(content_uri_id, content_type)
 }
 class SpotifyPlaybackTracker extends PlaybackTracker {
-    private state_machine_id = ""
-    private playback_id = ""
+    private recording_play = false
     private play_recorded = false
-    private socket_closed = false
-    private another_one = false
-    private in_between = false
-    private transfered = false
-    // private device_active = false
-    // private transfered = false
-    // private start_triggered = false
-    private connection_id = ""
-    private socket: SocketResult
-    private init_seconds = 0
-    private readonly device_id = vt()
-    // private readonly uid = "ccf999d7241e13521c2e"
-    // private readonly track_uri = "spotify:track:4pbG9SUmWIvsROVLF0zF9s"
-    // private readonly album_uri_id = "7vEJAtP3KgKSpOHVgwm3Eh"
-    // private readonly track_album_index = 3
-    // private readonly duration = 145746
-    private readonly uid = "1347b3deaefee32b7d2b"
-    private readonly track_uri = "spotify:track:2tQG2nFEHhWsH05kFKlC4A"
-    private readonly album_uri_id = "0BaIaHcyBXuOWeM4Aas4EW"
-    private readonly track_album_index = 2
-    private readonly duration = 109750
-    // private readonly uid = "296cf850453478739645"
-    // private readonly track_uri = "spotify:track:77uEkHMJ6EnOZjd1Hh9Tty"
-    // private readonly album_uri_id = "6wOJyevNYXevqTZCn6Xk5T"
-    // private readonly track_album_index = 4
-    // private readonly duration = 171989
-    // private readonly uid = "8167260601e9aab35d02"
-    // private readonly track_uri = "spotify:track:4Op5aSB6JSVzp7Jhi5hQKp"
-    // private readonly album_uri_id = "7skmDXP36SNveM5XKFoLuK"
-    // private readonly track_album_index = 5
-    // private readonly duration = 111266
-    private seq_num = 3
-    constructor(private readonly uri_id: string) {
-        const interval_seconds = 4
+    private total_seconds_played = 0
+    private readonly device_id: string
+    private readonly context_url: string
+    private readonly context_uri: string
+    private readonly skip_to_data: {
+        readonly content_type: Exclude<ContentType, "track">
+        readonly track_uri: string
+    } | {
+        readonly content_type: Exclude<ContentType, "episode">
+        readonly track_uri: string
+        readonly uid: string
+        readonly track_album_index: number
+    }
+    private readonly duration: number
+    private readonly interval_seconds: number
+    constructor(uri_id: string, content_type: ContentType) {
+        const interval_seconds = 2
         super(interval_seconds * 1000)
+        this.interval_seconds = interval_seconds
 
-        // this.device_id = "b27bde830fd81dbff77339f7ed344db1a40"
-
-        log("connecting to websocket")
-        const url = `wss://gue1-dealer.spotify.com/?access_token=${local_state.bearer_token}`
-        this.socket = http.socket(url, {}, false)
-        this.socket.connect({
-            open: () => {
-                log("open")
-                // this.socket.send(JSON.stringify({
-                //     type: "ping"
-                // }))
-
-            },
-            closed: (code, reason) => {
-                console.log(code.toString())
-                console.log(reason)
-            },
-            closing: (code, reason) => {
-                console.log(code.toString())
-                console.log(reason)
-            },
-            message: (msg) => {
-                log("a message")
-                const connection: {
-                    readonly headers: {
-                        readonly "Spotify-Connection-Id": string
+        // generate device id
+        const ht = "undefined" != typeof crypto && "function" == typeof crypto.getRandomValues
+        const gt = (e: number) => ht ? function (e) {
+            return crypto.getRandomValues(new Uint8Array(e))
+        }(e) : function (e) {
+            const t = []
+            for (; t.length < e;)
+                t.push(Math.floor(256 * Math.random()))
+            return t
+        }(e)
+        const ft = (e: number) => {
+            const t = Math.ceil(e / 2)
+            return function (e) {
+                let t = ""
+                for (let n = 0; n < e.length; n++) {
+                    const i = e[n]
+                    if (i === undefined) {
+                        throw new ScriptException("issue generating device id")
                     }
-                    readonly method: "PUT"
-                    readonly type: "message"
-                } | {
-                    readonly type: "message"
-                    readonly uri: string
-                    readonly payloads: {
-                        readonly state_machine: {
-                            readonly state_machine_id: string
-                            readonly states: {
-                                readonly state_id: string
-                                readonly track_uid: string
-                            }[]
+                    i < 16 && (t += "0"),
+                        t += i.toString(16)
+                }
+                return t
+            }(gt(t))
+        }
+        const vt = () => ft(40)
+        this.device_id = vt()
+
+        // load track info
+        switch (content_type) {
+            case "episode": {
+                const { url, headers } = episode_metadata_args(uri_id)
+                const response: EpisodeMetadataResponse = JSON.parse(local_http.GET(url, headers, false).body)
+                switch (response.data.episodeUnionV2.__typename) {
+                    case "Chapter":
+                        this.context_uri = response.data.episodeUnionV2.audiobookV2.data.uri
+                        break
+                    case "Episode":
+                        this.context_uri = response.data.episodeUnionV2.podcastV2.data.uri
+                        break
+                    default:
+                        throw assert_exhaustive(response.data.episodeUnionV2, "unreachable")
+                }
+                this.context_url = `context://${this.context_uri}`
+                this.skip_to_data = {
+                    content_type: "episode",
+                    track_uri: response.data.episodeUnionV2.uri
+                }
+                this.duration = response.data.episodeUnionV2.duration.totalMilliseconds
+                break
+            }
+            case "track":
+                const { url, headers } = track_metadata_args(uri_id)
+                const response: TrackMetadataResponse = JSON.parse(local_http.GET(url, headers, false).body)
+                const track_album_index = response.data.trackUnion.trackNumber - 1
+                const { url: tracks_url, headers: tracks_headers } = album_tracks_args(id_from_uri(response.data.trackUnion.albumOfTrack.uri), track_album_index, 1)
+                const tracks_response: AlbumTracksResponse = JSON.parse(local_http.GET(tracks_url, tracks_headers, false).body)
+                this.context_uri = response.data.trackUnion.albumOfTrack.uri
+                this.context_url = `context://${this.context_uri}`
+                this.duration = response.data.trackUnion.duration.totalMilliseconds
+                const uid = tracks_response.data.albumUnion.tracks.items[0]?.uid
+                if (uid === undefined) {
+                    throw new ScriptException("can't find song uid")
+                }
+                this.skip_to_data = {
+                    content_type: "track",
+                    uid,
+                    track_uri: response.data.trackUnion.uri,
+                    track_album_index
+                }
+                break
+            default:
+                throw assert_exhaustive(content_type, "unreachable")
+        }
+    }
+    override onInit(_seconds: number): void {
+
+    }
+    override onProgress(_seconds: number, is_playing: boolean): void {
+        if (is_playing) {
+            // this ends up lagging behind. 
+            this.total_seconds_played += this.interval_seconds
+        }
+
+        if (is_playing && !this.recording_play && this.total_seconds_played > 30) {
+            this.recording_play = true
+
+            log("creating WebSocket connection")
+
+            // setup WebSocket connection
+            const url = `wss://gue1-dealer.spotify.com/?access_token=${local_state.bearer_token}`
+            const socket = http.socket(url, {}, false)
+            socket.connect({
+                open: () => {
+
+                },
+                closed: (code, reason) => {
+                    console.log(code.toString())
+                    console.log(reason)
+                },
+                closing: (code, reason) => {
+                    console.log(code.toString())
+                    console.log(reason)
+                },
+                message: (msg) => {
+                    // ignore queued messages
+                    if (this.play_recorded) {
+                        log("ignoring queued message")
+                        return
+                    }
+                    const message: {
+                        readonly headers: {
+                            readonly "Spotify-Connection-Id": string
                         }
-                    }[]
-                } = JSON.parse(msg)
-                if (!("method" in connection)) {
+                        readonly method: "PUT"
+                        readonly type: "message"
+                    } | {
+                        readonly type: "message"
+                        readonly uri: string
+                        readonly payloads: {
+                            readonly state_machine: {
+                                readonly state_machine_id: string
+                                readonly states: {
+                                    readonly state_id: string
+                                    readonly track_uid: string
+                                    readonly track: number
+                                }[]
+                                readonly tracks: {
+                                    readonly metadata: {
+                                        readonly uri: string
+                                    }
+                                }[]
+                            }
+                        }[]
+                    } = JSON.parse(msg)
 
+                    // this is the initial connection message
+                    if ("method" in message) {
+                        const connection_id = message.headers["Spotify-Connection-Id"]
 
-                    if (connection.uri === "hm://track-playback/v1/command") {
-                        if (connection.payloads[0]?.state_machine.states.length === 0) {
-                            log("ignored WS message just informing us of the active device")
+                        const track_playback_url = "https://gue1-spclient.spotify.com/track-playback/v1/devices"
+                        local_http.POST(
+                            track_playback_url,
+                            JSON.stringify(
+                                {
+                                    device: {
+                                        brand: "spotify",
+                                        capabilities: {
+                                            change_volume: true,
+                                            enable_play_token: true,
+                                            supports_file_media_type: true,
+                                            play_token_lost_behavior: "pause",
+                                            disable_connect: false,
+                                            audio_podcasts: true,
+                                            video_playback: true,
+                                            manifest_formats: ["file_ids_mp3", "file_urls_mp3", "manifest_urls_audio_ad", "manifest_ids_video", "file_urls_external", "file_ids_mp4", "file_ids_mp4_dual", "manifest_urls_audio_ad"]
+                                        },
+                                        device_id: this.device_id,
+                                        device_type: "computer",
+                                        metadata: {},
+                                        model: "web_player",
+                                        name: "Web Player (Grayjay)",
+                                        platform_identifier: "web_player linux undefined;chrome 125.0.0.0;desktop",
+                                        is_group: false
+                                    },
+                                    outro_endcontent_snooping: false,
+                                    connection_id: connection_id,
+                                    client_version: "harmony:4.42.0-2780565f",
+                                    volume: 65535
+                                }
+                            ),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false
+                        )
+
+                        const connect_state_url = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
+                        local_http.requestWithBody(
+                            "PUT",
+                            connect_state_url,
+                            JSON.stringify({
+                                "member_type": "CONNECT_STATE",
+                                "device":
+                                {
+                                    "device_info":
+                                    {
+                                        "capabilities": {
+                                            "can_be_player": false,
+                                            "hidden": true,
+                                            "needs_full_player_state": true
+                                        }
+                                    }
+                                }
+                            }),
+                            {
+                                Authorization: `Bearer ${local_state.bearer_token}`,
+                                "X-Spotify-Connection-Id": connection_id
+                            },
+                            false)
+                        const transfer_url = `https://gue1-spclient.spotify.com/connect-state/v1/player/command/from/${this.device_id}/to/${this.device_id}`
+                        local_http.POST(
+                            transfer_url,
+                            JSON.stringify({
+                                "command": {
+                                    "context": {
+                                        uri: this.context_uri,
+                                        url: this.context_url,
+                                        "metadata": {}
+                                    },
+                                    "play_origin": {
+                                        "feature_identifier": "album",
+                                        //feature_identifier: "show",
+                                        //feature_identifier: "audiobook",
+                                        "feature_version": "web-player_2024-05-24_1716563359844_29d0a3b",
+                                        "referrer_identifier": "your_library"
+                                    },
+                                    "options": {
+                                        "license": "on-demand",
+                                        "skip_to": this.skip_to_data.content_type === "track" ? {
+                                            track_index: this.skip_to_data.track_album_index,
+                                            track_uid: this.skip_to_data.uid,
+                                            track_uri: this.skip_to_data.track_uri
+                                        } : {
+                                            track_uri: this.skip_to_data.track_uri
+                                        },
+                                        "player_options_override": {}
+                                    },
+                                    "logging_params": {
+                                        "page_instance_ids": [
+                                            "54d854fb-fcb4-4e1f-a600-4fd9cbfaac2e"
+                                        ],
+                                        "interaction_ids": [
+                                            "d3697919-e8be-425d-98bc-1ea70e28963a"
+                                        ],
+                                        "command_id": "46b1903536f6eda76783840368982c5e"
+                                    },
+                                    "endpoint": "play"
+                                }
+                            }),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false
+                        )
+                        return
+                    }
+
+                    if (message.uri === "hm://track-playback/v1/command") {
+                        if (message.payloads[0]?.state_machine.states.length === 0) {
+                            log("ignored WS message that was informing of the active device")
                             log(msg)
                             return
                         }
-                        if (this.playback_id !== "" && this.state_machine_id !== "") {
-                            log("ignored WS message ids already found")
-                            log(msg)
-                            return
-                        }
-                        // if (this.state_machine_id === "") {
-                        log("reading state details")
-                        const playback_id = connection.payloads[0]?.state_machine.states.find((state) => {
-                            return state.track_uid === this.uid
-                        })?.state_id
-                        // const playback_id = connection.payloads[0]?.state_machine.states[0]?.state_id
-                        if (playback_id === undefined || playback_id === "") {
+
+                        const state_machine = message.payloads[0]?.state_machine
+                        const playback_id = (() => {
+                            const data = this.skip_to_data
+                            switch (data.content_type) {
+                                case "episode": {
+                                    return state_machine?.states.find((state) => {
+                                        return state_machine.tracks[state.track]?.metadata.uri === data.track_uri
+                                    })?.state_id
+                                }
+                                case "track": {
+                                    return message.payloads[0]?.state_machine.states.find((state) => {
+                                        return state.track_uid === data.uid
+                                    })?.state_id
+                                }
+                                default:
+                                    throw assert_exhaustive(data)
+                            }
+                        })()
+
+                        if (playback_id === undefined) {
                             log("error missing playback_id")
                             log(msg)
                             return
-                            // throw new ScriptException("missing playback_id")
                         }
 
-
-
-                        const state_machine_id = connection.payloads[0]?.state_machine.state_machine_id
-                        if (state_machine_id === undefined || state_machine_id === "") {
+                        let state_machine_id = state_machine?.state_machine_id
+                        if (state_machine_id === undefined) {
                             log("error missing state_machine_id")
                             log(msg)
                             return
-                            // throw new ScriptException("missing state_machine_id")
                         }
-                        this.playback_id = playback_id
-                        this.state_machine_id = state_machine_id
-                        log(msg)
-                        // }
+
+                        let seq_num = 3
+                        const initial_state_machine_id = state_machine_id
+                        const state_update_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
+
+                        // simulate song play
+                        const before_track_load: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                            "PUT",
+                            state_update_url,
+                            JSON.stringify(
+                                {
+                                    seq_num: seq_num,
+                                    state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
+                                    sub_state: { playback_speed: 1, position: 0, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                                    debug_source: "before_track_load"
+                                }
+                            ),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false).body)
+                        state_machine_id = before_track_load.state_machine.state_machine_id
+                        seq_num += 1
+
+                        local_http.requestWithBody(
+                            "PUT",
+                            state_update_url,
+                            JSON.stringify(
+                                {
+                                    seq_num: seq_num,
+                                    state_ref: { state_machine_id: initial_state_machine_id, state_id: playback_id, paused: false },
+                                    sub_state: { playback_speed: 0, position: 0, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                                    debug_source: "speed_changed"
+                                }
+                            ),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false)
+                        seq_num += 1
+
+                        const speed_change: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                            "PUT",
+                            state_update_url,
+                            JSON.stringify(
+                                {
+                                    seq_num: seq_num,
+                                    state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
+                                    sub_state: { playback_speed: 1, position: 0, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                                    previous_position: 0,
+                                    debug_source: "speed_changed"
+                                }
+                            ),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false).body)
+                        state_machine_id = speed_change.state_machine.state_machine_id
+                        seq_num += 1
+
+                        const started_playing: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                            "PUT",
+                            state_update_url,
+                            JSON.stringify(
+                                {
+                                    seq_num: seq_num,
+                                    state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
+                                    sub_state: { playback_speed: 1, position: 1360, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                                    previous_position: 1360,
+                                    debug_source: "started_playing"
+                                }
+                            ),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false).body)
+                        state_machine_id = started_playing.state_machine.state_machine_id
+                        seq_num += 1
+
+                        const played_threshold_reached: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
+                            "PUT",
+                            state_update_url,
+                            JSON.stringify(
+                                {
+                                    seq_num: seq_num,
+                                    state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
+                                    sub_state: { playback_speed: 1, position: 30786, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                                    previous_position: 30786,
+                                    debug_source: "played_threshold_reached"
+                                }
+                            ),
+                            { Authorization: `Bearer ${local_state.bearer_token}` },
+                            false).body)
+                        state_machine_id = played_threshold_reached.state_machine.state_machine_id
+                        seq_num += 1
 
 
+                        // delete the device
+                        const url = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
+                        local_http.request("DELETE", url, { Authorization: `Bearer ${local_state.bearer_token}` }, false)
 
+                        const deregister = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}`
+                        local_http.requestWithBody("DELETE", deregister, JSON.stringify(
+                            {
+                                seq_num: seq_num,
+                                state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
+                                sub_state: { playback_speed: 1, position: 40786, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                                previous_position: 40786,
+                                debug_source: "deregister"
+                            }
+                        ), { Authorization: `Bearer ${local_state.bearer_token}` }, false)
 
-                        // payloads statemachine states state_id
-
-                        // this.playback_id = "11"
-
-
-                        // this.state_machine_id = "69"
-
-                        // if (!this.start_triggered && this.transfered) {
-
-                        // }
+                        socket.close()
+                        this.play_recorded = true
+                        log("closing WebSocket connection")
 
                         return
                     }
@@ -3051,448 +3315,13 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                     log(msg)
 
                     return
+                },
+                failure: (exception) => {
+                    log("failure")
+                    console.log(exception)
                 }
-                this.connection_id = connection.headers["Spotify-Connection-Id"]
-                // register device
+            })
 
-                log("registering device")
-                const register_url = "https://gue1-spclient.spotify.com/track-playback/v1/devices"
-                const response = local_http.POST(
-                    register_url,
-                    // JSON.stringify({
-                    //     connection_id: connection.headers["Spotify-Connection-Id"],
-                    //     device: {
-                    //         device_id: this.device_id,
-                    //         model: "web_player",
-                    //         name: "Web Player (Grayjay)",
-                    //         // capabilities: {
-                    //         //     change_volume: false,
-                    //         //     audio_podcasts: true,
-                    //         //     manifest_formats: [
-                    //         //         "file_ids_mp3",
-                    //         //         "file_urls_mp3"
-                    //         //     ]
-                    //         // },
-                    //         "capabilities":{"change_volume":true,"enable_play_token":true,"supports_file_media_type":true,"play_token_lost_behavior":"pause","disable_connect":false,"audio_podcasts":true,"video_playback":true,"manifest_formats":["file_ids_mp3","file_urls_mp3","manifest_urls_audio_ad","manifest_ids_video","file_urls_external","file_ids_mp4","file_ids_mp4_dual","manifest_urls_audio_ad"]},
-                    //         client_version: "harmony:4.42.0-2780565f",
-                    //         // brand: "spotify",
-                    //         device_type: "computer"
-                    //     }
-                    // }),
-                    JSON.stringify(
-                        { "device": { "brand": "spotify", "capabilities": { "change_volume": true, "enable_play_token": true, "supports_file_media_type": true, "play_token_lost_behavior": "pause", "disable_connect": false, "audio_podcasts": true, "video_playback": true, "manifest_formats": ["file_ids_mp3", "file_urls_mp3", "manifest_urls_audio_ad", "manifest_ids_video", "file_urls_external", "file_ids_mp4", "file_ids_mp4_dual", "manifest_urls_audio_ad"] }, "device_id": this.device_id, "device_type": "computer", "metadata": {}, "model": "web_player", "name": "Web Player (Chrome)", "platform_identifier": "web_player linux undefined;chrome 125.0.0.0;desktop", "is_group": false }, "outro_endcontent_snooping": false, "connection_id": this.connection_id, "client_version": "harmony:4.42.0-2780565f", "volume": 65535 }
-                    ),
-                    { Authorization: `Bearer ${local_state.bearer_token}` },
-                    false
-                )
-                log(response)
-
-                log("grabbing devices info")
-                const another_register_thing = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
-
-                const response1 = local_http.requestWithBody(
-                    "PUT",
-                    another_register_thing,
-                    JSON.stringify({
-                        "member_type": "CONNECT_STATE",
-                        "device":
-                        {
-                            "device_info":
-                            {
-                                "capabilities": {
-                                    "can_be_player": false,
-                                    "hidden": true,
-                                    "needs_full_player_state": true
-                                }
-                            }
-                        }
-                    }),
-                    {
-                        Authorization: `Bearer ${local_state.bearer_token}`,
-                        "X-Spotify-Connection-Id": this.connection_id
-                    },
-                    false)
-
-                const device_info = JSON.parse(response1.body)
-                log(device_info)
-
-
-                // this.device_active = "active_device_id" in device_info
-
-
-                // this.transfered = true
-
-                // this.registered = true
-
-                // payloads cluster playerstate
-
-                // payloads statemachine staemachine_id
-
-
-                // if (1 + 2 > 3) {
-
-                // }
-                // log(response.body)
-                // gives the list of devices
-                //https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_5ef1df4daf071872bfe5ae0714efafa29f2
-                //https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_ce5888d21908a6372f02c2c0155f3d7d1c9
-                // actually registers a device
-                //https://gue1-spclient.spotify.com/track-playback/v1/devices
-
-            },
-            failure: (exception) => {
-                log("failure")
-                console.log(exception)
-            }
-        })
-    }
-    override onInit(seconds: number): void {
-        this.init_seconds = seconds
-    }
-    override onProgress(seconds: number, is_playing: boolean): void {
-
-        //{"seq_num":15,"state_ref":{"state_machine_id":"ChQ0Jnocbbg7kDx3WOjgNutMUyLLzA","state_id":"8425aeb0fef142d597d1b578c5f31061","paused":true},"sub_state":{"playback_speed":0,"position":33535,"duration":307927,"media_type":"AUDIO","bitrate":128000,"audio_quality":"HIGH","format":10},"previous_position":33535,"debug_source":"pause"}
-
-        if (this.socket_closed) {
-            return
-        }
-
-
-        if (seconds - this.init_seconds > 70 && is_playing) {
-
-            this.socket.close()
-            this.socket_closed = true
-            log("done closing")
-        }
-
-        if (this.another_one) {
-            return
-        }
-
-
-
-        if (seconds - this.init_seconds > 60 && is_playing) {
-
-            log("deleting device")
-            const url = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
-            const response = local_http.request("DELETE", url, { Authorization: `Bearer ${local_state.bearer_token}` }, false)
-            log(response)
-
-            const url2 = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}`
-            const response2 = local_http.requestWithBody("DELETE", url2, JSON.stringify(
-                {"seq_num":this.seq_num,"state_ref":{"state_machine_id":this.state_machine_id,"state_id":this.playback_id,"paused":false},"sub_state":{"playback_speed":1,"position":40786,"duration":this.duration,"media_type":"AUDIO","bitrate":128000,"audio_quality":"HIGH","format":10},"previous_position":40786,"debug_source":"deregister"}
-            ) ,{ Authorization: `Bearer ${local_state.bearer_token}` }, false)
-            log(response2)
-
-            /*
-            log("trigger finish")
-
-            const initial_state_machine_id = this.state_machine_id
-            const register_playback_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response1: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                register_playback_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": this.duration - 158, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": this.duration - 158, "playback_stats": { "ms_total_est": this.duration, "ms_metadata_duration": 0, "ms_manifest_latency": 196, "ms_latency": 1188, "start_offset_ms": 14, "ms_initial_buffering": 451, "ms_initial_rebuffer": 451, "ms_seek_rebuffering": 0, "ms_stalled": 0, "max_ms_seek_rebuffering": 0, "max_ms_stalled": 0, "n_stalls": 0, "n_rendition_upgrade": 0, "n_rendition_downgrade": 0, "bps_bandwidth_max": 0, "bps_bandwidth_min": 0, "bps_bandwidth_avg": 0, "audiocodec": "mp4", "start_bitrate": 128000, "time_weighted_bitrate": 0, "key_system": "widevine", "ms_key_latency": 1796, "total_bytes": 3494928, "local_time_ms": Date.now(), "n_dropped_video_frames": 0, "n_total_video_frames": 0, "resolution_max": 0, "resolution_min": 0, "strategy": "MSE" }, "debug_source": "track_data_finalized" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response1)
-            this.seq_num += 1
-            this.state_machine_id = response1.state_machine.state_machine_id
-
-
-
-
-            log("triggering before play")
-            const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response2: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                before_playling_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": initial_state_machine_id, "state_id": this.playback_id, "paused": true }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "before_track_load" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response2)
-            this.state_machine_id = response2.state_machine.state_machine_id
-            this.seq_num += 1
-
-            // let res = 0
-            // for(let i = 0; i<10000;i++){
-            //     res = (res+1)*2/2
-            // }
-
-
-            log("speed change 1")
-            // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response3: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                before_playling_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": initial_state_machine_id, "state_id": this.playback_id, "paused": true }, "sub_state": { "playback_speed": 0, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "speed_changed" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response3)
-            this.seq_num += 1
-
-            */
-
-
-
-            this.another_one = true
-
-
-        }
-
-        if (this.in_between) {
-            return
-        }
-
-        if (seconds - this.init_seconds > 50 && is_playing) {
-            if (!this.socket.isOpen) {
-                log("socket not open!")
-            } else {
-                log(`recording play of ${this.uri_id}`)
-
-                // this.socket.close()
-            }
-            const register_playback_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                register_playback_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 30786, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 30786, "debug_source": "played_threshold_reached" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response)
-            this.seq_num += 1
-            this.state_machine_id = response.state_machine.state_machine_id
-
-
-
-            this.in_between = true
-
-
-        }
-
-        if (this.play_recorded) {
-            return
-        }
-        if (seconds - this.init_seconds > 15 && is_playing) {
-            this.play_recorded = true
-
-
-
-            // log(this.connection_id)
-
-
-            // command id is random
-            //t = e=>{
-            // const t = Math.ceil(e / 2);
-            // return function(e) {
-            //     let t = "";
-            //     for (let n = 0; n < e.length; n++) {
-            //         const i = e[n];
-            //         i < 16 && (t += "0"),
-            //         t += i.toString(16)
-            //     }
-            //     return t
-            // }(gt(t))
-            //     const un = /^[0-9a-f]{32}$/i
-            //     , pn = ()=>ft(32)
-            //     , mn = e=>{
-            //       if (e && (t = e,
-            //       !un.test(t)))
-            //           throw new TypeError(`Invalid commandId. Expected a 32 character hex string but got: ${e}`);
-            //       var t;
-            //       return e || pn()
-            //   }
-
-            const initial_state_machine_id = this.state_machine_id
-
-            log("triggering before play")
-            const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response1: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                before_playling_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "before_track_load" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response1)
-            this.state_machine_id = response1.state_machine.state_machine_id
-            this.seq_num += 1
-
-            // let res = 0
-            // for(let i = 0; i<10000;i++){
-            //     res = (res+1)*2/2
-            // }
-
-
-            log("speed change 1")
-            // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response3: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                before_playling_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": initial_state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 0, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "debug_source": "speed_changed" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response3)
-            this.seq_num += 1
-            // this.state_machine_id = response3.state_machine.state_machine_id
-
-            // res = 0
-            // for(let i = 0; i<10000;i++){
-            //     res = (res+1)*2/2
-            // }
-
-            log("speedchange 2")
-            // const before_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response4: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                before_playling_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 0, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 0, "debug_source": "speed_changed" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response4)
-            this.state_machine_id = response4.state_machine.state_machine_id
-            this.seq_num += 1
-
-            // res = 0
-            // for(let i = 0; i<10000;i++){
-            //     res = (res+1)*2/2
-            // }
-
-
-            log("triggering play start")
-            const started_playling_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`
-            const response: { readonly state_machine: { readonly state_machine_id: string } } = JSON.parse(local_http.requestWithBody(
-                "PUT",
-                started_playling_url,
-                // JSON.stringify({
-                //     debug_source: "played_threshold_reached",
-
-                // }),
-                JSON.stringify(
-                    { "seq_num": this.seq_num, "state_ref": { "state_machine_id": this.state_machine_id, "state_id": this.playback_id, "paused": false }, "sub_state": { "playback_speed": 1, "position": 1360, "duration": this.duration, "media_type": "AUDIO", "bitrate": 128000, "audio_quality": "HIGH", "format": 10 }, "previous_position": 1360, "debug_source": "started_playing" }
-                ),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false).body)
-            log(response)
-            this.state_machine_id = response.state_machine.state_machine_id
-            this.seq_num += 1
-            // this.start_triggered = true
-
-
-        }
-
-        if (this.transfered) {
-            return
-        }
-        if (seconds - this.init_seconds > 5 && is_playing) {
-            log("transfering to device")
-            const transfer_url = `https://gue1-spclient.spotify.com/connect-state/v1/player/command/from/${this.device_id}/to/${this.device_id}`
-            const transfer_response = local_http.POST(
-                transfer_url,
-                // this.device_active ? JSON.stringify(
-                //     { "transfer_options": { "restore_paused": "restore" }, "interaction_id": "cf075506-9bc9-4af6-a164-93778f310345", "command_id": "3bcf58bc37afa628c3d441df53efc469" }
-                // ) : 
-                JSON.stringify({
-                    "command": {
-                        "context": {
-                            // "uri": "spotify:track:6CbPF34njo6PpWYTFQrMZN",
-                            // "url": "context://spotify:track:6CbPF34njo6PpWYTFQrMZN",
-                            uri: `spotify:album:${this.album_uri_id}`,
-                            url: `context://spotify:album:${this.album_uri_id}`,
-                            "metadata": {}
-                        },
-                        "play_origin": {
-                            "feature_identifier": "album",
-                            // "feature_identifier": "track",
-                            "feature_version": "web-player_2024-05-24_1716563359844_29d0a3b",
-                            "referrer_identifier": "your_library"
-                        },
-                        "options": {
-                            "license": "on-demand",
-                            "skip_to": {
-                                track_index: this.track_album_index,
-                                track_uid: this.uid,
-                                track_uri: this.track_uri
-                            },
-                            "player_options_override": {}
-                        },
-                        "logging_params": {
-                            "page_instance_ids": [
-                                "54d854fb-fcb4-4e1f-a600-4fd9cbfaac2e"
-                            ],
-                            "interaction_ids": [
-                                "d3697919-e8be-425d-98bc-1ea70e28963a"
-                            ],
-                            "command_id": "46b1903536f6eda76783840368982c5e"
-                        },
-                        "endpoint": "play"
-                    }
-                }),
-                // JSON.stringify({
-                //     command: {
-                //         endpoint: "play",
-                //         context: {
-                //             metadata: {},
-                //             uri: "spotify:track:7aohwSiTDju51QmC54AUba",
-                //             url: "context://spotify:track:7aohwSiTDju51QmC54AUba"
-                //         },
-                //         "logging_params": { "page_instance_ids": ["5616d9d6-c44f-4cda-a7c2-167890dd2beb"], "interaction_ids": ["72ab0dbb-7a83-4644-8bad-550d65ff8e77"], "command_id": "0f85a8b2347ff239207f32344d7da9d6" },
-                //         "options": {
-                //             "license": "on-demand", "skip_to": {}, "player_options_override": {}
-                //         },
-                //         "play_origin": { "feature_identifier": "track", "feature_version": "web-player_2024-05-23_1716493666036_b53deef", "referrer_identifier": "your_library" },
-                //     }
-                //     // command_id: "1ec91233c1cd60f69f5de11f513b2887",
-                //     // transfer_options: {
-                //     //     restore_paused: "pause"
-                //     // }
-                // }),
-                { Authorization: `Bearer ${local_state.bearer_token}` },
-                false
-            )
-            log(transfer_response)
-            this.transfered = true
         }
     }
 }

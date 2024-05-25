@@ -288,9 +288,12 @@ export type SectionItemEpisode = {
             readonly coverArt: null | {
                 readonly sources: ImageSources
             }
+            readonly __typename: "Podcast"
+        } | {
+            readonly __typename: "NotFound"
         }
     }
-    readonly releaseDate: {
+    readonly releaseDate: null | {
         readonly isoString: string
     }
 }
@@ -359,7 +362,7 @@ export type SectionItemArtist = {
 export type GenrePlaylistSection = {
     readonly data: {
         readonly __typename: "BrowseGenericSectionData"
-        readonly title: {
+        readonly title: null | {
             readonly transformedLabel: string
         }
     }
@@ -522,6 +525,13 @@ export type TranscriptResponse = {
     } | {
         readonly startMs: number
         readonly title: unknown
+    } | {
+        readonly startMs: number
+        readonly fallback: {
+            readonly sentence: {
+                readonly text: string
+            }
+        }
     })[]
     readonly language: "en"
 }
@@ -649,6 +659,8 @@ export type TrackMetadataResponse = {
     readonly data: {
         readonly trackUnion: {
             readonly playcount: string
+            readonly uri: string
+            readonly trackNumber: number
             readonly firstArtist: {
                 readonly items: {
                     readonly id: string
@@ -664,6 +676,7 @@ export type TrackMetadataResponse = {
                 readonly date: {
                     readonly isoString: string
                 }
+                readonly uri: string
             }
             readonly duration: {
                 readonly totalMilliseconds: number
@@ -731,12 +744,17 @@ export type SongMetadataResponse = {
         name: string
     }[]
     readonly canonical_uri: string
-    readonly file: {
-        readonly file_id: string
-        // only MP4_128 and MP4_256 are available on the web and therefore what we support
-        readonly format: "MP4_128" | "AAC_24" | "MP4_256" | "MP4_256_DUAL" | "OGG_VORBIS_320"
+    readonly file: Files | undefined
+    readonly alternative: undefined | {
+        readonly file: Files
     }[]
 }
+
+type Files = {
+    readonly file_id: string
+    // only MP4_128 and MP4_256 are available on the web and therefore what we support
+    readonly format: "MP4_128" | "AAC_24" | "MP4_256" | "MP4_256_DUAL" | "OGG_VORBIS_320"
+}[]
 
 export type ShowMetadataResponse = {
     readonly data: {
@@ -805,6 +823,7 @@ export type Tracks = {
             }
             readonly uri: string
         }
+        readonly uid: string
     }[]
     readonly totalCount: number
 }
