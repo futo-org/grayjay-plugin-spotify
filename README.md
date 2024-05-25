@@ -22,7 +22,7 @@
         is some weird DRM issue. happens at least for these albums
         https://open.spotify.com/album/5koG6JeFEwcINyN1QuXyiq
         https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
-- [ ]   playback tracking Hardcoded TODOs. audio quality bitrate format play_origin platform_identifier client_version feature_version
+- [ ]   playback tracking Hardcoded TODOs. platform_identifier client_version feature_version
 
 ## Grayjay Bugs
 - [ ]   RatingScaler doesn't work

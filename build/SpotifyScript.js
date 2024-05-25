@@ -2532,6 +2532,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
     recording_play = false;
     play_recorded = false;
     total_seconds_played = 0;
+    feature_identifier;
     device_id;
     context_url;
     context_uri;
@@ -2543,6 +2544,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
         super(interval_seconds * 1000);
         this.interval_seconds = interval_seconds;
         // generate device id
+        // from spotify player js code
         const ht = "undefined" != typeof crypto && "function" == typeof crypto.getRandomValues;
         const gt = (e) => ht ? function (e) {
             return crypto.getRandomValues(new Uint8Array(e));
@@ -2577,9 +2579,11 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                 switch (response.data.episodeUnionV2.__typename) {
                     case "Chapter":
                         this.context_uri = response.data.episodeUnionV2.audiobookV2.data.uri;
+                        this.feature_identifier = "audiobook";
                         break;
                     case "Episode":
                         this.context_uri = response.data.episodeUnionV2.podcastV2.data.uri;
+                        this.feature_identifier = "show";
                         break;
                     default:
                         throw assert_exhaustive(response.data.episodeUnionV2, "unreachable");
@@ -2598,6 +2602,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                 const track_album_index = response.data.trackUnion.trackNumber - 1;
                 const { url: tracks_url, headers: tracks_headers } = album_tracks_args(id_from_uri(response.data.trackUnion.albumOfTrack.uri), track_album_index, 1);
                 const tracks_response = JSON.parse(local_http.GET(tracks_url, tracks_headers, false).body);
+                this.feature_identifier = "album";
                 this.context_uri = response.data.trackUnion.albumOfTrack.uri;
                 this.context_url = `context://${this.context_uri}`;
                 this.duration = response.data.trackUnion.duration.totalMilliseconds;
@@ -2669,23 +2674,25 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                                 metadata: {},
                                 model: "web_player",
                                 name: "Web Player (Grayjay)",
+                                // TODO hardcoded
                                 platform_identifier: "web_player linux undefined;chrome 125.0.0.0;desktop",
                                 is_group: false
                             },
                             outro_endcontent_snooping: false,
                             connection_id: connection_id,
+                            // TODO hardcoded
                             client_version: "harmony:4.42.0-2780565f",
                             volume: 65535
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false);
                         const connect_state_url = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`;
                         local_http.requestWithBody("PUT", connect_state_url, JSON.stringify({
-                            "member_type": "CONNECT_STATE",
-                            "device": {
-                                "device_info": {
-                                    "capabilities": {
-                                        "can_be_player": false,
-                                        "hidden": true,
-                                        "needs_full_player_state": true
+                            member_type: "CONNECT_STATE",
+                            device: {
+                                device_info: {
+                                    capabilities: {
+                                        can_be_player: false,
+                                        hidden: true,
+                                        needs_full_player_state: true
                                     }
                                 }
                             }
@@ -2695,40 +2702,39 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         }, false);
                         const transfer_url = `https://gue1-spclient.spotify.com/connect-state/v1/player/command/from/${this.device_id}/to/${this.device_id}`;
                         local_http.POST(transfer_url, JSON.stringify({
-                            "command": {
-                                "context": {
+                            command: {
+                                context: {
                                     uri: this.context_uri,
                                     url: this.context_url,
-                                    "metadata": {}
+                                    metadata: {}
                                 },
-                                "play_origin": {
-                                    "feature_identifier": "album",
-                                    //feature_identifier: "show",
-                                    //feature_identifier: "audiobook",
-                                    "feature_version": "web-player_2024-05-24_1716563359844_29d0a3b",
-                                    "referrer_identifier": "your_library"
+                                play_origin: {
+                                    feature_identifier: this.feature_identifier,
+                                    // TODO hardcoded
+                                    feature_version: "web-player_2024-05-24_1716563359844_29d0a3b",
+                                    referrer_identifier: "your_library"
                                 },
-                                "options": {
-                                    "license": "on-demand",
-                                    "skip_to": this.skip_to_data.content_type === "track" ? {
+                                options: {
+                                    license: "on-demand",
+                                    skip_to: this.skip_to_data.content_type === "track" ? {
                                         track_index: this.skip_to_data.track_album_index,
                                         track_uid: this.skip_to_data.uid,
                                         track_uri: this.skip_to_data.track_uri
                                     } : {
                                         track_uri: this.skip_to_data.track_uri
                                     },
-                                    "player_options_override": {}
+                                    player_options_override: {}
                                 },
-                                "logging_params": {
-                                    "page_instance_ids": [
+                                logging_params: {
+                                    page_instance_ids: [
                                         "54d854fb-fcb4-4e1f-a600-4fd9cbfaac2e"
                                     ],
-                                    "interaction_ids": [
+                                    interaction_ids: [
                                         "d3697919-e8be-425d-98bc-1ea70e28963a"
                                     ],
-                                    "command_id": "46b1903536f6eda76783840368982c5e"
+                                    command_id: "46b1903536f6eda76783840368982c5e"
                                 },
-                                "endpoint": "play"
+                                endpoint: "play"
                             }
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false);
                         return;
@@ -2771,11 +2777,15 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         let seq_num = 3;
                         const initial_state_machine_id = state_machine_id;
                         const state_update_url = `https://gue1-spclient.spotify.com/track-playback/v1/devices/${this.device_id}/state`;
+                        const logged_in = bridge.isLoggedIn();
+                        const bitrate = logged_in ? 256000 : 128000;
+                        const format = logged_in ? 11 : 10;
+                        const audio_quality = logged_in ? "VERY_HIGH" : "HIGH";
                         // simulate song play
                         const before_track_load = JSON.parse(local_http.requestWithBody("PUT", state_update_url, JSON.stringify({
                             seq_num: seq_num,
                             state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
-                            sub_state: { playback_speed: 1, position: 0, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                            sub_state: { playback_speed: 1, position: 0, duration: this.duration, media_type: "AUDIO", bitrate, audio_quality, format },
                             debug_source: "before_track_load"
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false).body);
                         state_machine_id = before_track_load.state_machine.state_machine_id;
@@ -2783,14 +2793,14 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         local_http.requestWithBody("PUT", state_update_url, JSON.stringify({
                             seq_num: seq_num,
                             state_ref: { state_machine_id: initial_state_machine_id, state_id: playback_id, paused: false },
-                            sub_state: { playback_speed: 0, position: 0, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                            sub_state: { playback_speed: 0, position: 0, duration: this.duration, media_type: "AUDIO", bitrate, audio_quality, format },
                             debug_source: "speed_changed"
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false);
                         seq_num += 1;
                         const speed_change = JSON.parse(local_http.requestWithBody("PUT", state_update_url, JSON.stringify({
                             seq_num: seq_num,
                             state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
-                            sub_state: { playback_speed: 1, position: 0, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                            sub_state: { playback_speed: 1, position: 0, duration: this.duration, media_type: "AUDIO", bitrate, audio_quality, format },
                             previous_position: 0,
                             debug_source: "speed_changed"
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false).body);
@@ -2799,7 +2809,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         const started_playing = JSON.parse(local_http.requestWithBody("PUT", state_update_url, JSON.stringify({
                             seq_num: seq_num,
                             state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
-                            sub_state: { playback_speed: 1, position: 1360, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                            sub_state: { playback_speed: 1, position: 1360, duration: this.duration, media_type: "AUDIO", bitrate, audio_quality, format },
                             previous_position: 1360,
                             debug_source: "started_playing"
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false).body);
@@ -2808,7 +2818,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         const played_threshold_reached = JSON.parse(local_http.requestWithBody("PUT", state_update_url, JSON.stringify({
                             seq_num: seq_num,
                             state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
-                            sub_state: { playback_speed: 1, position: 30786, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                            sub_state: { playback_speed: 1, position: 30786, duration: this.duration, media_type: "AUDIO", bitrate, audio_quality, format },
                             previous_position: 30786,
                             debug_source: "played_threshold_reached"
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false).body);
@@ -2821,7 +2831,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         local_http.requestWithBody("DELETE", deregister, JSON.stringify({
                             seq_num: seq_num,
                             state_ref: { state_machine_id: state_machine_id, state_id: playback_id, paused: false },
-                            sub_state: { playback_speed: 1, position: 40786, duration: this.duration, media_type: "AUDIO", bitrate: 128000, audio_quality: "HIGH", format: 10 },
+                            sub_state: { playback_speed: 1, position: 40786, duration: this.duration, media_type: "AUDIO", bitrate, audio_quality, format },
                             previous_position: 40786,
                             debug_source: "deregister"
                         }), { Authorization: `Bearer ${local_state.bearer_token}` }, false);
