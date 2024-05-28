@@ -14,6 +14,7 @@ export type SpotifySource = Required<Omit<Source<
     | "getSearchChannelContentsCapabilities"
     | "getLiveChatWindow"
     | "searchChannelContents"
+    | "getChannelPlaylists"
 >>
 
 export type State = {

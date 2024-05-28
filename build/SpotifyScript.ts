@@ -2034,7 +2034,7 @@ function getChannelCapabilities() {
         []
     )
 }
-function getChannelContents(url: string, type: ChannelTypeCapabilities | null, order: Order | null, filters: FilterQuery<string> | null): ContentPager {
+function getChannelContents(url: string, type: ChannelTypeCapabilities | null, order: Order | null, filters: FilterQuery<string> | null) {
     if (filters !== null) {
         throw new ScriptException("unreachable")
     }
