@@ -1,6 +1,6 @@
 ## Development
 1.  `npm run npm-dev` or `bun run bun-dev`
-2.  load `BiliBiliConfig.json` into Grayjay
+2.  load `SpotifyConfig.json` into Grayjay
 
 ## TO-DO
 - [ ]   an entire podcast has a rating. maybe give the episode the podcast rating use this to load it https://api-partner.spotify.com/pathfinder/v1/query?operationName=queryShowMetadataV2&variables=%7B%22uri%22%3A%22spotify%3Ashow%3A5VzFvh1JlEhBMS6ZHZ8CNO%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%225fb034a236a3e8301e9eca0e23def3341ed66c891ea2d4fea374c091dc4b4a6a%22%7D%7D
