@@ -13,8 +13,7 @@
     "scriptSignature": "",
     "scriptPublicKey": "",
     "packages": [
-        "Http",
-        "Utilities"
+        "Http"
     ],
     "allowEval": false,
     "allowUrls": [

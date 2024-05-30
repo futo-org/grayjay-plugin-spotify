@@ -3502,6 +3502,5 @@ function get_gid(song_uri_id: string) {
 export {
     get_gid,
     assert_never,
-    log_passthrough,
-    getPlaybackTracker
+    log_passthrough
 }

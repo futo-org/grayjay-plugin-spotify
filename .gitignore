@@ -3,4 +3,3 @@ node_modules
 *.js.map
 
 !build/*
-build/dev-config.json
