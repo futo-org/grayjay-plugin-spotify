@@ -1,9 +1,0 @@
-stages:
-- deploy
-
-deploy:
-  stage: deploy
-  script:
-    - sh build/deploy.sh
-  only:
-    - master
