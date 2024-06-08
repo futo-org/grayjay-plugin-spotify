@@ -31,4 +31,5 @@
 - [ ]   the pager that goes in the contents property of a playlist doesn't ever call the nextPage method
 - [ ]   the channel about section doesn't render HTML
 - [ ]   the isOpen property on WebSocket always returns false
-- [ ]   when polycentric channels have issues not displaying channel playlists when the actual plugin that opened the channel doesn't support channel playlists 
+- [ ]   when polycentric channels have issues not displaying channel playlists when the actual plugin that opened the channel doesn't support channel playlists
+- [ ]   exceptions thrown inside wss message handlers don't get reported
