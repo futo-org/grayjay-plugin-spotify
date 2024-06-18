@@ -349,53 +349,55 @@ function getHome() {
             section_url: "https://open.spotify.com/content-feed",
             sectionItems: whats_new_response.data.whatsNewFeedItems
         })
-        const recently_played_ids: RecentlyPlayedUris = JSON.parse(responses[2].body)
+        if(responses[2].code !== 404){
+            const recently_played_ids: RecentlyPlayedUris = JSON.parse(responses[2].body)
 
-        const { url, headers } = recently_played_details_args(recently_played_ids.playContexts.map(function (uri_obj) {
-            return uri_obj.uri
-        }))
-        const recently_played_response: RecentlyPlayedDetails = JSON.parse(local_http.GET(url, headers, false).body)
-        sections.unshift({
-            data: {
-                __typename: "CustomRecentlyPlayedSectionData",
-                title: {
-                    text: "Recently played"
+            const { url, headers } = recently_played_details_args(recently_played_ids.playContexts.map(function (uri_obj) {
+                return uri_obj.uri
+            }))
+            const recently_played_response: RecentlyPlayedDetails = JSON.parse(local_http.GET(url, headers, false).body)
+            sections.unshift({
+                data: {
+                    __typename: "CustomRecentlyPlayedSectionData",
+                    title: {
+                        text: "Recently played"
+                    },
                 },
-            },
-            section_url: "https://open.spotify.com/genre/recently-played",
-            sectionItems: {
-                items: recently_played_response.data.lookup.flatMap(function (section_item) {
-                    if (section_item.__typename === "UnknownTypeWrapper") {
-                        if (section_item._uri !== `spotify:user:${local_state.username}:collection`) {
-                            throw new ScriptException("unexpected uri")
+                section_url: "https://open.spotify.com/genre/recently-played",
+                sectionItems: {
+                    items: recently_played_response.data.lookup.flatMap(function (section_item) {
+                        if (section_item.__typename === "UnknownTypeWrapper") {
+                            if (section_item._uri !== `spotify:user:${local_state.username}:collection`) {
+                                throw new ScriptException("unexpected uri")
+                            }
+                            return {
+                                content: {
+                                    data: {
+                                        image: {
+                                            sources: [{
+                                                "height": 640,
+                                                "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                                                "width": 640
+                                            }]
+                                        },
+                                        name: "Liked Songs",
+                                        __typename: "PseudoPlaylist",
+                                        uri: "spotify:collection:tracks"
+                                    },
+                                    __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                }
+                            }
                         }
                         return {
                             content: {
-                                data: {
-                                    image: {
-                                        sources: [{
-                                            "height": 640,
-                                            "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
-                                            "width": 640
-                                        }]
-                                    },
-                                    name: "Liked Songs",
-                                    __typename: "PseudoPlaylist",
-                                    uri: "spotify:collection:tracks"
-                                },
-                                __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                data: section_item.data,
+                                __typename: section_item.__typename
                             }
                         }
-                    }
-                    return {
-                        content: {
-                            data: section_item.data,
-                            __typename: section_item.__typename
-                        }
-                    }
-                })
-            }
-        })
+                    })
+                }
+            })
+        }
     }
     const playlists = format_page(sections, 4, "Home")
     return new ContentPager(playlists, false)
