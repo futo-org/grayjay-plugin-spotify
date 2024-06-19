@@ -3418,8 +3418,8 @@ function log_passthrough<T>(value: T): T {
     return value
 }
 function throw_if_not_200(response: BridgeHttpResponse): BridgeHttpResponse {
-    if (response.code !== 200){
-        throw new ScriptException("recieved a non 200 response")
+    if (!(response as any).isOk){
+        throw new ScriptException("Request failed [" + response.code + "] for " + (response as any).url);
     }
     return response
 }

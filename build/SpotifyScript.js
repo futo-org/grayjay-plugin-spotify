@@ -2927,8 +2927,8 @@ function log_passthrough(value) {
     return value;
 }
 function throw_if_not_200(response) {
-    if (response.code !== 200) {
-        throw new ScriptException("recieved a non 200 response");
+    if (!response.isOk) {
+        throw new ScriptException("Request failed [" + response.code + "] for " + response.url);
     }
     return response;
 }
