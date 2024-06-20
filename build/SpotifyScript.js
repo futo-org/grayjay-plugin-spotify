@@ -44,6 +44,7 @@ source.isChannelUrl = isChannelUrl;
 source.getChannel = getChannel;
 source.getChannelCapabilities = getChannelCapabilities;
 source.getChannelContents = getChannelContents;
+source.getChannelPlaylists = getChannelPlaylists;
 source.isContentDetailsUrl = isContentDetailsUrl;
 source.getContentDetails = getContentDetails;
 source.isPlaylistUrl = isPlaylistUrl;
@@ -65,6 +66,7 @@ if (IS_TESTING) {
         isChannelUrl,
         getChannel,
         getChannelContents,
+        getChannelPlaylists,
         getChannelCapabilities,
         searchChannels,
         isPlaylistUrl,
@@ -106,6 +108,9 @@ if (IS_TESTING) {
     }
     if (source.getChannelContents === undefined) {
         assert_never(source.getChannelContents);
+    }
+    if (source.getChannelPlaylists === undefined) {
+        assert_never(source.getChannelPlaylists);
     }
     if (source.getChannelCapabilities === undefined) {
         assert_never(source.getChannelCapabilities);
@@ -1908,6 +1913,26 @@ function getChannelContents(url, type, order, filters) {
                     throw assert_exhaustive(show_metadata_response.data.podcastUnionV2, "unreachable");
             }
         case "artist":
+            return new FlattenedArtistDiscographyPager(channel_uri_id, 0, 2);
+        case "user":
+            return new ContentPager([], false);
+        case "content-feed":
+            throw new ScriptException("not implemented");
+        default:
+            throw assert_exhaustive(channel_type, "unreachable");
+    }
+}
+function getChannelPlaylists(url) {
+    check_and_update_token();
+    const { channel_type, channel_uri_id } = parse_channel_url(url);
+    switch (channel_type) {
+        case "section":
+            return new PlaylistPager([], false);
+        case "genre":
+            return new PlaylistPager([], false);
+        case "show":
+            return new PlaylistPager([], false);
+        case "artist":
             return new ArtistDiscographyPager(channel_uri_id, 0, 50);
         case "user":
             return new UserPlaylistPager(channel_uri_id, 0, 50);
@@ -2006,6 +2031,92 @@ class ArtistDiscographyPager extends PlaylistPager {
         return this.hasMore;
     }
 }
+class FlattenedArtistDiscographyPager extends VideoPager {
+    artist_uri_id;
+    limit;
+    offset;
+    total_albums;
+    constructor(artist_uri_id, offset, limit) {
+        // TODO simplify by removing batching code
+        const { url: discography_url, headers: discography_headers } = discography_args(artist_uri_id, offset, limit);
+        const responses = local_http
+            .batch()
+            .GET(discography_url, discography_headers, false)
+            .execute();
+        if (responses[0] === undefined) {
+            throw new ScriptException("unreachable");
+        }
+        const discography_response = JSON.parse(throw_if_not_200(responses[0]).body);
+        const total_albums = discography_response.data.artistUnion.discography.all.totalCount;
+        super(load_album_tracks_and_flatten(discography_response), total_albums > offset + limit);
+        this.artist_uri_id = artist_uri_id;
+        this.limit = limit;
+        this.offset = offset + limit;
+        this.total_albums = total_albums;
+    }
+    nextPage() {
+        const { url, headers } = discography_args(this.artist_uri_id, this.offset, this.limit);
+        const discography_response = JSON.parse(local_http.GET(url, headers, false).body);
+        this.results = load_album_tracks_and_flatten(discography_response);
+        this.hasMore = this.total_albums > this.offset + this.limit;
+        this.offset = this.offset + this.limit;
+        return this;
+    }
+    hasMorePagers() {
+        return this.hasMore;
+    }
+}
+//TODO parallelize all of this album track loading code
+function load_album_tracks_and_flatten(discography_response) {
+    const songs = [];
+    for (const album of discography_response.data.artistUnion.discography.all.items) {
+        const first_release = album.releases.items[0];
+        if (first_release === undefined) {
+            throw new ScriptException("unreachable");
+        }
+        const pagination_limit = 50;
+        const offset = 0;
+        const { url, headers } = album_metadata_args(first_release.id, offset, pagination_limit);
+        const album_metadata_response = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body);
+        const album_artist = album_metadata_response.data.albumUnion.artists.items[0];
+        if (album_artist === undefined) {
+            throw new ScriptException("missing album artist");
+        }
+        const unix_time = new Date(album_metadata_response.data.albumUnion.date.isoString).getTime() / 1000;
+        const album_pager = new AlbumPager(first_release.id, offset, pagination_limit, album_metadata_response, album_artist, unix_time);
+        songs.push(...album_pager.results);
+        while (album_pager.hasMorePagers()) {
+            album_pager.nextPage();
+            songs.push(...album_pager.results);
+        }
+        // const album_pager = new AlbumPager(first_release.id,)
+        // const { url: tracks_url, headers: tracks_headers } = album_tracks_args(id_from_uri(album), track_album_index, 1)
+        // const tracks_response: AlbumTracksResponse = JSON.parse(throw_if_not_200(local_http.GET(tracks_url, tracks_headers, false)).body)
+    }
+    log(songs.length);
+    return songs;
+}
+// function format_discography_flattened(discography_response: DiscographyResponse, artist: PlatformAuthorLink) {
+//     return discography_response.data.artistUnion.discography.all.items.map(function (album) {
+//         const first_release = album.releases.items[0]
+//         if (first_release === undefined) {
+//             throw new ScriptException("unreachable")
+//         }
+//         const thumbnail = first_release.coverArt.sources[0]?.url
+//         if (thumbnail === undefined) {
+//             throw new ScriptException("unreachable")
+//         }
+//         return new PlatformPlaylist({
+//             id: new PlatformID(PLATFORM, first_release.id, plugin.config.id),
+//             name: first_release.name,
+//             author: artist,
+//             datetime: new Date(first_release.date.isoString).getTime() / 1000,
+//             url: `${ALBUM_URL_PREFIX}${first_release.id}`,
+//             videoCount: first_release.tracks.totalCount,
+//             thumbnail
+//         })
+//     })
+// }
 function format_discography(discography_response, artist) {
     return discography_response.data.artistUnion.discography.all.items.map(function (album) {
         const first_release = album.releases.items[0];
