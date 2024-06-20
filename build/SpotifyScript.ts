@@ -195,7 +195,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/
 
         // use the authenticated client to get a logged in bearer token
-        const html = throw_if_not_200(local_http.GET(home_page, {}, true)).body
+        const html = throw_if_not_ok(local_http.GET(home_page, {}, true)).body
 
         const web_player_js_match_result = html.match(web_player_js_regex)
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
@@ -245,14 +245,14 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
         }
 
         const get_license_response: GetLicenseResponse = JSON.parse(
-            throw_if_not_200(responses[0]).body
+            throw_if_not_ok(responses[0]).body
         )
         const license_uri = `https://gue1-spclient.spotify.com/${get_license_response.uri}`
 
         const profile_attributes_response: ProfileAttributesResponse = JSON.parse(
-            throw_if_not_200(responses[1]).body
+            throw_if_not_ok(responses[1]).body
         )
-        const feature_version_match_result = throw_if_not_200(responses[2]).body.match(/"(web-player_(.*?))"/)
+        const feature_version_match_result = throw_if_not_ok(responses[2]).body.match(/"(web-player_(.*?))"/)
         if (feature_version_match_result === null) {
             throw new ScriptException("regex error")
         }
@@ -283,7 +283,7 @@ function download_bearer_token() {
     const get_access_token_url = "https://open.spotify.com/get_access_token?reason=transport&productType=web-player"
 
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_200(local_http.GET(get_access_token_url, {}, true)).body
+    const access_token_response = throw_if_not_ok(local_http.GET(get_access_token_url, {}, true)).body
 
     const token_response: {
         readonly accessToken: string,
@@ -338,10 +338,10 @@ function getHome() {
     if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
         throw new ScriptException("unreachable")
     }
-    const home_response: HomeResponse = JSON.parse(throw_if_not_200(responses[0]).body)
+    const home_response: HomeResponse = JSON.parse(throw_if_not_ok(responses[0]).body)
     const sections: Section[] = home_response.data.home.sectionContainer.sections.items
     if (bridge.isLoggedIn()) {
-        const whats_new_response: WhatsNewResponse = JSON.parse(throw_if_not_200(responses[1]).body)
+        const whats_new_response: WhatsNewResponse = JSON.parse(throw_if_not_ok(responses[1]).body)
         sections.push({
             data: {
                 __typename: "WhatsNewSectionData",
@@ -353,12 +353,12 @@ function getHome() {
             sectionItems: whats_new_response.data.whatsNewFeedItems
         })
         if (responses[2].code !== 404) {
-            const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_200(responses[2]).body)
+            const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_ok(responses[2]).body)
 
             const { url, headers } = recently_played_details_args(recently_played_ids.playContexts.map(function (uri_obj) {
                 return uri_obj.uri
             }))
-            const recently_played_response: RecentlyPlayedDetails = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const recently_played_response: RecentlyPlayedDetails = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             sections.unshift({
                 data: {
                     __typename: "CustomRecentlyPlayedSectionData",
@@ -485,7 +485,7 @@ class SearchPager extends VideoPager {
         private readonly limit: number
     ) {
         const { url, headers } = search_args(query, offset, limit)
-        const search_response: SearchResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const search_response: SearchResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const has_more = are_more_song_and_episode_results(search_response, offset, limit)
         super(format_song_and_episode_results(search_response), has_more)
@@ -493,7 +493,7 @@ class SearchPager extends VideoPager {
     }
     override nextPage(this: SearchPager): SearchPager {
         const { url, headers } = search_args(this.query, this.offset, this.limit)
-        const search_response: SearchResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const search_response: SearchResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         this.results = format_song_and_episode_results(search_response)
         this.hasMore = are_more_song_and_episode_results(search_response, this.offset, this.limit)
@@ -590,8 +590,8 @@ function getContentDetails(url: string) {
             if (results[0] === undefined || results[1] === undefined) {
                 throw new ScriptException("unreachable")
             }
-            const song_metadata_response: SongMetadataResponse = JSON.parse(throw_if_not_200(results[0]).body)
-            const track_metadata_response: TrackMetadataResponse = JSON.parse(throw_if_not_200(results[1]).body)
+            const song_metadata_response: SongMetadataResponse = JSON.parse(throw_if_not_ok(results[0]).body)
+            const track_metadata_response: TrackMetadataResponse = JSON.parse(throw_if_not_ok(results[1]).body)
             const first_artist = track_metadata_response.data.trackUnion.firstArtist.items[0]
             if (first_artist === undefined) {
                 throw new ScriptException("missing artist")
@@ -604,7 +604,7 @@ function getContentDetails(url: string) {
             let subtitles: ISubtitleSource[] = []
 
             if (results[2] !== undefined && results[2].code !== 404) {
-                const lyrics_response: LyricsResponse = JSON.parse(throw_if_not_200(results[2]).body)
+                const lyrics_response: LyricsResponse = JSON.parse(throw_if_not_ok(results[2]).body)
                 const subtitle_name = function () {
                     switch (lyrics_response.lyrics.language) {
                         case "en":
@@ -659,8 +659,8 @@ function getContentDetails(url: string) {
             if (second_results[0] === undefined || second_results[1] === undefined) {
                 throw new ScriptException("unreachable")
             }
-            const file_manifest: FileManifestResponse = JSON.parse(throw_if_not_200(second_results[0]).body)
-            const artist_metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_200(second_results[1]).body)
+            const file_manifest: FileManifestResponse = JSON.parse(throw_if_not_ok(second_results[0]).body)
+            const artist_metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_ok(second_results[1]).body)
 
             const duration = track_metadata_response.data.trackUnion.duration.totalMilliseconds / 1000
 
@@ -724,7 +724,7 @@ function getContentDetails(url: string) {
             const { url, headers } = episode_metadata_args(content_uri_id)
 
             const episode_metadata_response: EpisodeMetadataResponse = JSON.parse(
-                throw_if_not_200(local_http.GET(url, headers, false)).body
+                throw_if_not_ok(local_http.GET(url, headers, false)).body
             )
 
             if (!episode_metadata_response.data.episodeUnionV2.playability.playable) {
@@ -791,14 +791,14 @@ function getContentDetails(url: string) {
             if (results[0] === undefined || results[1] === undefined) {
                 throw new ScriptException("unreachable")
             }
-            const full_show_metadata: ShowMetadataResponse = JSON.parse(throw_if_not_200(results[0]).body)
-            const file_manifest: FileManifestResponse = JSON.parse(throw_if_not_200(results[1]).body)
+            const full_show_metadata: ShowMetadataResponse = JSON.parse(throw_if_not_ok(results[0]).body)
+            const file_manifest: FileManifestResponse = JSON.parse(throw_if_not_ok(results[1]).body)
 
             const subtitles = function (): ISubtitleSource[] {
                 if (results[2] === undefined || results[2].code === 404) {
                     return []
                 }
-                const transcript_response: TranscriptResponse = JSON.parse(throw_if_not_200(results[2]).body)
+                const transcript_response: TranscriptResponse = JSON.parse(throw_if_not_ok(results[2]).body)
 
                 const subtitle_name = function () {
                     switch (transcript_response.language) {
@@ -1051,7 +1051,7 @@ class SpotifyPlaylistsPager extends PlaylistPager {
         private readonly limit: number
     ) {
         const { url, headers } = search_args(query, offset, limit)
-        const search_response: SearchResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const search_response: SearchResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const has_more = are_more_playlist_results(search_response, offset, limit)
         super(format_playlist_results(search_response), has_more)
@@ -1059,7 +1059,7 @@ class SpotifyPlaylistsPager extends PlaylistPager {
     }
     override nextPage(this: SpotifyPlaylistsPager): SpotifyPlaylistsPager {
         const { url, headers } = search_args(this.query, this.offset, this.limit)
-        const search_response: SearchResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const search_response: SearchResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         this.results = format_playlist_results(search_response)
         this.hasMore = are_more_playlist_results(search_response, this.offset, this.limit)
@@ -1145,7 +1145,7 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
             const offset = 0
 
             const { url, headers } = album_metadata_args(playlist_uri_id, offset, pagination_limit)
-            const album_metadata_response: AlbumResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const album_metadata_response: AlbumResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
             const album_artist = album_metadata_response.data.albumUnion.artists.items[0]
             if (album_artist === undefined) {
@@ -1176,7 +1176,7 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
             const offset = 0
 
             const { url, headers } = fetch_playlist_args(playlist_uri_id, offset, pagination_limit)
-            const playlist_response: PlaylistResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const playlist_response: PlaylistResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             const owner = playlist_response.data.playlistV2.ownerV2.data
 
             return new PlatformPlaylistDetails({
@@ -1202,7 +1202,7 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
                 case "your-episodes": {
                     const limit = 50
                     const { url, headers } = liked_episodes_args(0, limit)
-                    const response: LikedEpisodesResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+                    const response: LikedEpisodesResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
                     const username = local_state.username
                     if (username === undefined) {
                         throw new ScriptException("unreachable")
@@ -1223,7 +1223,7 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
                 case "tracks": {
                     const limit = 50
                     const { url, headers } = liked_songs_args(0, limit)
-                    const response: LikedTracksResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+                    const response: LikedTracksResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
                     const username = local_state.username
                     if (username === undefined) {
                         throw new ScriptException("unreachable")
@@ -1269,7 +1269,7 @@ class LikedEpisodesPager extends VideoPager {
     }
     override nextPage(this: LikedEpisodesPager): LikedEpisodesPager {
         const { url, headers } = liked_episodes_args(this.offset, this.pagination_limit)
-        const response: LikedEpisodesResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const response: LikedEpisodesResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const episodes = format_collection_episodes(response)
         this.results = episodes
@@ -1325,7 +1325,7 @@ class LikedTracksPager extends VideoPager {
     }
     override nextPage(this: LikedTracksPager): LikedTracksPager {
         const { url, headers } = liked_songs_args(this.offset, this.pagination_limit)
-        const response: LikedTracksResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const response: LikedTracksResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const episodes = format_collection_tracks(response)
         this.results = episodes
@@ -1382,7 +1382,7 @@ class SpotifyPlaylistPager extends VideoPager {
     }
     override nextPage(this: SpotifyPlaylistPager): SpotifyPlaylistPager {
         const { url, headers } = fetch_playlist_contents_args(this.playlist_uri_id, this.offset, this.pagination_limit)
-        const playlist_content_response: PlaylistContentResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const playlist_content_response: PlaylistContentResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const songs = format_playlist_tracks(playlist_content_response.data.playlistV2.content)
         this.results = songs
@@ -1504,7 +1504,7 @@ class AlbumPager extends VideoPager {
     }
     override nextPage(this: AlbumPager): AlbumPager {
         const { url, headers } = album_tracks_args(this.album_uri_id, this.offset, this.pagination_limit)
-        const album_tracks_response: AlbumTracksResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const album_tracks_response: AlbumTracksResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const songs = format_album_tracks(album_tracks_response.data.albumUnion.tracks, this.thumbnails, this.album_artist, this.unix_time)
         this.results = songs
@@ -1618,7 +1618,7 @@ class SpotifyChannelPager extends ChannelPager {
         private readonly limit: number
     ) {
         const { url, headers } = search_args(query, offset, limit)
-        const search_response: SearchResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const search_response: SearchResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const has_more = are_more_channel_results(search_response, offset, limit)
         super(format_channel_results(search_response), has_more)
@@ -1626,7 +1626,7 @@ class SpotifyChannelPager extends ChannelPager {
     }
     override nextPage(this: SpotifyChannelPager): SpotifyChannelPager {
         const { url, headers } = search_args(this.query, this.offset, this.limit)
-        const search_response: SearchResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const search_response: SearchResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         this.results = format_channel_results(search_response)
         this.hasMore = are_more_channel_results(search_response, this.offset, this.limit)
@@ -1742,7 +1742,7 @@ function getChannel(url: string): PlatformChannel {
             const limit = 4
 
             const { url, headers } = browse_section_args(channel_uri_id, 0, limit)
-            const browse_section_response: BrowseSectionResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const browse_section_response: BrowseSectionResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             const name = browse_section_response.data.browseSection.data.title.transformedLabel
             const channel_url = `${SECTION_URL_PREFIX}${channel_uri_id}`
             const section = browse_section_response.data.browseSection
@@ -1780,12 +1780,12 @@ function getChannel(url: string): PlatformChannel {
 
                 // Spotify just load the first 50
                 const { url: uri_url, headers: uri_headers } = recently_played_ids_args(0, 50)
-                const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_200(local_http.GET(uri_url, uri_headers, false)).body)
+                const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_ok(local_http.GET(uri_url, uri_headers, false)).body)
 
                 const { url, headers } = recently_played_details_args(recently_played_ids.playContexts.map(function (uri_obj) {
                     return uri_obj.uri
                 }))
-                const recently_played_response: RecentlyPlayedDetails = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+                const recently_played_response: RecentlyPlayedDetails = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
                 const section_items = recently_played_response.data.lookup.flatMap(function (section_item): (SectionItemAlbum | SectionItemPlaylist | SectionItemPseudoPlaylist)[] {
                     if (section_item.__typename === "UnknownTypeWrapper") {
@@ -1839,7 +1839,7 @@ function getChannel(url: string): PlatformChannel {
             const limit = 4
 
             const { url, headers } = browse_page_args(channel_uri_id, { offset: 0, limit }, { offset: 0, limit })
-            const browse_page_response: BrowsePageResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const browse_page_response: BrowsePageResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             if (browse_page_response.data.browse.__typename === "GenericError") {
                 throw new ScriptException("error loading genre page")
             }
@@ -1883,7 +1883,7 @@ function getChannel(url: string): PlatformChannel {
         }
         case "show": {
             const { url, headers } = show_metadata_args(channel_uri_id)
-            const show_response: ShowMetadataResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const show_response: ShowMetadataResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
             const sources = show_response.data.podcastUnionV2.coverArt.sources
             const thumbnail = sources[sources.length - 1]?.url
@@ -1905,7 +1905,7 @@ function getChannel(url: string): PlatformChannel {
                 readonly name: string
                 readonly image_url: string
                 readonly followers_count: number
-            } = JSON.parse(throw_if_not_200(local_http.GET(
+            } = JSON.parse(throw_if_not_ok(local_http.GET(
                 url,
                 { Authorization: `Bearer ${local_state.bearer_token}` },
                 false
@@ -1920,7 +1920,7 @@ function getChannel(url: string): PlatformChannel {
         }
         case "artist":
             const { url, headers } = artist_metadata_args(channel_uri_id)
-            const artist_metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const artist_metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             const thumbnail = artist_metadata_response.data.artistUnion.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
             const banner = artist_metadata_response.data.artistUnion.visuals.headerImage?.sources[0]?.url
             const channel = {
@@ -2052,7 +2052,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
         case "section": {
             const initial_limit = 20
             const { url, headers } = browse_section_args(channel_uri_id, 0, initial_limit)
-            const browse_section_response: BrowseSectionResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const browse_section_response: BrowseSectionResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
             const name = browse_section_response.data.browseSection.data.title.transformedLabel
             const section = browse_section_response.data.browseSection
@@ -2091,12 +2091,12 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
 
                 // Spotify just load the first 50
                 const { url: uri_url, headers: uri_headers } = recently_played_ids_args(0, 50)
-                const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_200(local_http.GET(uri_url, uri_headers, false)).body)
+                const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_ok(local_http.GET(uri_url, uri_headers, false)).body)
 
                 const { url, headers } = recently_played_details_args(recently_played_ids.playContexts.map(function (uri_obj) {
                     return uri_obj.uri
                 }))
-                const recently_played_response: RecentlyPlayedDetails = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+                const recently_played_response: RecentlyPlayedDetails = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
                 const section_items = recently_played_response.data.lookup.flatMap(function (section_item): (SectionItemAlbum | SectionItemPlaylist | SectionItemPseudoPlaylist)[] {
                     if (section_item.__typename === "UnknownTypeWrapper") {
@@ -2155,7 +2155,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
 
             const limit = 4
             const { url, headers } = browse_page_args(channel_uri_id, { offset: 0, limit: 50 }, { offset: 0, limit: limit })
-            const browse_page_response: BrowsePageResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+            const browse_page_response: BrowsePageResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
             if (browse_page_response.data.browse.__typename === "GenericError") {
                 throw new ScriptException("error loading genre page")
@@ -2179,7 +2179,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
             if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
                 throw new ScriptException("unreachable")
             }
-            const show_metadata_response: ShowMetadataResponse = JSON.parse(throw_if_not_200(responses[0]).body)
+            const show_metadata_response: ShowMetadataResponse = JSON.parse(throw_if_not_ok(responses[0]).body)
             const author = new PlatformAuthorLink(
                 new PlatformID(PLATFORM, channel_uri_id, plugin.config.id),
                 show_metadata_response.data.podcastUnionV2.name,
@@ -2188,13 +2188,13 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
             )
             switch (show_metadata_response.data.podcastUnionV2.__typename) {
                 case "Audiobook": {
-                    const chapters_response: BookChaptersResponse = JSON.parse(throw_if_not_200(responses[1]).body)
+                    const chapters_response: BookChaptersResponse = JSON.parse(throw_if_not_ok(responses[1]).body)
                     const publish_date_time = new Date(show_metadata_response.data.podcastUnionV2.publishDate.isoString).getTime() / 1000
 
                     return new ChapterPager(channel_uri_id, chapters_response, 0, chapters_limit, author, publish_date_time)
                 }
                 case "Podcast": {
-                    const episodes_response: PodcastEpisodesResponse = JSON.parse(throw_if_not_200(responses[2]).body)
+                    const episodes_response: PodcastEpisodesResponse = JSON.parse(throw_if_not_ok(responses[2]).body)
                     return new EpisodePager(channel_uri_id, episodes_response, 0, episodes_limit, author)
                 }
                 default:
@@ -2310,8 +2310,8 @@ class ArtistDiscographyPager extends PlaylistPager {
         if (responses[0] === undefined || responses[1] === undefined) {
             throw new ScriptException("unreachable")
         }
-        const metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_200(responses[0]).body)
-        const discography_response: DiscographyResponse = JSON.parse(throw_if_not_200(responses[1]).body)
+        const metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_ok(responses[0]).body)
+        const discography_response: DiscographyResponse = JSON.parse(throw_if_not_ok(responses[1]).body)
 
         const avatar_url = metadata_response.data.artistUnion.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
         const author = new PlatformAuthorLink(
@@ -2359,7 +2359,7 @@ class FlattenedArtistDiscographyPager extends VideoPager {
         if (responses[0] === undefined) {
             throw new ScriptException("unreachable")
         }
-        const discography_response: DiscographyResponse = JSON.parse(throw_if_not_200(responses[0]).body)
+        const discography_response: DiscographyResponse = JSON.parse(throw_if_not_ok(responses[0]).body)
 
         const total_albums = discography_response.data.artistUnion.discography.all.totalCount
 
@@ -2392,7 +2392,7 @@ function load_album_tracks_and_flatten(discography_response: DiscographyResponse
         const offset = 0
 
         const { url, headers } = album_metadata_args(first_release.id, offset, pagination_limit)
-        const album_metadata_response: AlbumResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const album_metadata_response: AlbumResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         const album_artist = album_metadata_response.data.albumUnion.artists.items[0]
         if (album_artist === undefined) {
@@ -2606,7 +2606,7 @@ class SectionPager extends ContentPager {
     }
     override nextPage(this: SectionPager): SectionPager {
         const { url, headers } = browse_section_args(this.section_uri_id, this.offset, this.limit)
-        const browse_section_response: BrowseSectionResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const browse_section_response: BrowseSectionResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
         const section_items = browse_section_response.data.browseSection.sectionItems.items.flatMap(function (section_item) {
             const section_item_content = section_item.content.data
             if (section_item_content.__typename === "Album" || section_item_content.__typename === "Playlist") {
@@ -2723,7 +2723,7 @@ class ChapterPager extends VideoPager {
     }
     override nextPage(this: ChapterPager): ChapterPager {
         const { url, headers } = book_chapters_args(this.audiobook_uri_id, this.offset, this.limit)
-        const chapters_response: BookChaptersResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const chapters_response: BookChaptersResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
         const chapters = format_chapters(chapters_response, this.author, this.publish_date_time)
         const next_offset = chapters_response.data.podcastUnionV2.chaptersV2.pagingInfo.nextOffset
 
@@ -2775,7 +2775,7 @@ class EpisodePager extends VideoPager {
     }
     override nextPage(this: EpisodePager): EpisodePager {
         const { url, headers } = podcast_episodes_args(this.podcast_uri_id, this.offset, this.limit)
-        const chapters_response: PodcastEpisodesResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const chapters_response: PodcastEpisodesResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
         const chapters = format_episodes(chapters_response, this.author)
         const next_offset = chapters_response.data.podcastUnionV2.episodesV2.pagingInfo.nextOffset
 
@@ -2818,7 +2818,7 @@ class UserPlaylistPager extends PlaylistPager {
         private readonly limit: number,
     ) {
         const { url, headers } = user_playlists_args(username, offset, limit)
-        const playlists_response: UserPlaylistsResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const playlists_response: UserPlaylistsResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
         const playlists = format_user_playlists(playlists_response)
         const total_playlists = playlists_response.total_public_playlists_count
 
@@ -2829,7 +2829,7 @@ class UserPlaylistPager extends PlaylistPager {
     }
     override nextPage(this: UserPlaylistPager): UserPlaylistPager {
         const { url, headers } = user_playlists_args(this.username, this.offset, this.limit)
-        const playlists_response: UserPlaylistsResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const playlists_response: UserPlaylistsResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
         const playlists = format_user_playlists(playlists_response)
 
         this.hasMore = this.offset + this.limit < this.total_playlists
@@ -2881,7 +2881,7 @@ function getUserPlaylists() {
     const limit = 50
     while (more) {
         const { url, headers } = library_args(offset, limit)
-        const library_response: LibraryResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const library_response: LibraryResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         playlists = [
             ...playlists,
@@ -2979,7 +2979,7 @@ function following_args() {
 }
 function getUserSubscriptions(): string[] {
     const { url, headers } = following_args()
-    const following_response: FollowingResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+    const following_response: FollowingResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
     let following: string[] = following_response.profiles === undefined ? [] : following_response.profiles.map(function (profile) {
         const { uri_id, uri_type } = parse_uri(profile.uri)
         if (uri_type === "artist") {
@@ -2994,7 +2994,7 @@ function getUserSubscriptions(): string[] {
     const limit = 50
     while (more) {
         const { url, headers } = library_args(offset, limit)
-        const library_response: LibraryResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+        const library_response: LibraryResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
         following = [
             ...following,
@@ -3090,7 +3090,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
         switch (content_type) {
             case "episode": {
                 const { url, headers } = episode_metadata_args(uri_id)
-                const response: EpisodeMetadataResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+                const response: EpisodeMetadataResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
                 switch (response.data.episodeUnionV2.__typename) {
                     case "Chapter":
                         this.context_uri = response.data.episodeUnionV2.audiobookV2.data.uri
@@ -3113,10 +3113,10 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
             }
             case "track":
                 const { url, headers } = track_metadata_args(uri_id)
-                const response: TrackMetadataResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
+                const response: TrackMetadataResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
                 const track_album_index = response.data.trackUnion.trackNumber - 1
                 const { url: tracks_url, headers: tracks_headers } = album_tracks_args(id_from_uri(response.data.trackUnion.albumOfTrack.uri), track_album_index, 1)
-                const tracks_response: AlbumTracksResponse = JSON.parse(throw_if_not_200(local_http.GET(tracks_url, tracks_headers, false)).body)
+                const tracks_response: AlbumTracksResponse = JSON.parse(throw_if_not_ok(local_http.GET(tracks_url, tracks_headers, false)).body)
                 this.feature_identifier = "album"
                 this.context_uri = response.data.trackUnion.albumOfTrack.uri
                 this.context_url = `context://${this.context_uri}`
@@ -3202,7 +3202,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         const connection_id = message.headers["Spotify-Connection-Id"]
 
                         const track_playback_url = "https://gue1-spclient.spotify.com/track-playback/v1/devices"
-                        throw_if_not_200(local_http.POST(
+                        throw_if_not_ok(local_http.POST(
                             track_playback_url,
                             JSON.stringify(
                                 {
@@ -3237,7 +3237,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                         ))
 
                         const connect_state_url = `https://gue1-spclient.spotify.com/connect-state/v1/devices/hobs_${this.device_id.slice(0, 35)}`
-                        throw_if_not_200(local_http.requestWithBody(
+                        throw_if_not_ok(local_http.requestWithBody(
                             "PUT",
                             connect_state_url,
                             JSON.stringify({
@@ -3260,7 +3260,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                             },
                             false))
                         const transfer_url = `https://gue1-spclient.spotify.com/connect-state/v1/player/command/from/${this.device_id}/to/${this.device_id}`
-                        throw_if_not_200(local_http.POST(
+                        throw_if_not_ok(local_http.POST(
                             transfer_url,
                             JSON.stringify({
                                 command: {
@@ -3533,9 +3533,9 @@ function log_passthrough<T>(value: T): T {
     log(value)
     return value
 }
-function throw_if_not_200(response: BridgeHttpResponse): BridgeHttpResponse {
+function throw_if_not_ok(response: BridgeHttpResponse): BridgeHttpResponse {
     if (!(response as any).isOk) {
-        throw new ScriptException("Request failed [" + response.code + "] for " + (response as any).url)
+        throw new ScriptException(`Request failed [${response.code}] for ${response.url}`)
     }
     return response
 }
