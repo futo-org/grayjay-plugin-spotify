@@ -26,8 +26,19 @@
         "open.spotifycdn.com"
     ],
     "authentication": {
-		"loginUrl": "https://accounts.spotify.com/en/login",
-		"cookiesToFind": ["sp_dc"],
-		"userAgent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36"
-	}
+        "loginUrl": "https://accounts.spotify.com/en/login",
+        "cookiesToFind": [
+            "sp_dc"
+        ],
+        "userAgent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36"
+    },
+    "settings": [
+        {
+            "variable": "spotifyActivity",
+            "name": "Provide Spotify Activity",
+            "description": "Tell Spotify what you played.",
+            "type": "Boolean",
+            "default": "true"
+        }
+    ]
 }

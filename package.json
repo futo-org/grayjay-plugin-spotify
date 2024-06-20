@@ -34,7 +34,7 @@
     },
     "type": "module",
     "devDependencies": {
-        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types#64b1ee11ba9d6e559d7cae9ecfc8c5bc6f9961a7",
+        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types#dfebc622c2ccb09a985b6de4d8343beeb01321e4",
         "@types/node": "^20.14.6",
         "http-server": "^14.1.1",
         "npm-check-updates": "^16.14.20"

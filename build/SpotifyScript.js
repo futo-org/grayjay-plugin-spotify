@@ -29,6 +29,7 @@ Type.Order.Views = "Most played";
 Type.Order.Favorites = "Most favorited";
 Type.Feed.Playlists = "PLAYLISTS";
 Type.Feed.Albums = "ALBUMS";
+let local_settings;
 /** State */
 let local_state;
 //#endregion
@@ -152,6 +153,7 @@ function enable(conf, settings, savedState) {
         log("logging savedState");
         log(savedState);
     }
+    local_settings = settings;
     if (savedState !== null) {
         const state = JSON.parse(savedState);
         local_state = state;
@@ -2650,6 +2652,9 @@ function getUserSubscriptions() {
     return following;
 }
 function getPlaybackTracker(url) {
+    if (!local_settings.spotifyActivity) {
+        return null;
+    }
     const { content_uri_id, content_type } = parse_content_url(url);
     check_and_update_token();
     return new SpotifyPlaybackTracker(content_uri_id, content_type);

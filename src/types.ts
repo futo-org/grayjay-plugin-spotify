@@ -1,5 +1,7 @@
 //#region custom types
-export type Settings = unknown
+export interface ISettings {
+    spotifyActivity: boolean
+}
 
 export type SpotifySource = Required<Omit<Source<
     { readonly [key: string]: string },

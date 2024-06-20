@@ -14,7 +14,6 @@ import {
     type PlaylistResponse,
     type PlaylistType,
     type ShowMetadataResponse,
-    type Settings,
     type SongMetadataResponse,
     type State,
     type TrackMetadataResponse,
@@ -51,6 +50,7 @@ import {
     type RecentlyPlayedDetails,
     type RecentlyPlayedSection,
     type SectionItemPseudoPlaylist,
+    type ISettings
 } from "./types.js"
 
 const CONTENT_REGEX = /^https:\/\/open\.spotify\.com\/(track|episode)\/([a-zA-Z0-9]*)($|\/)/
@@ -90,6 +90,7 @@ Type.Order.Favorites = "Most favorited"
 Type.Feed.Playlists = "PLAYLISTS"
 Type.Feed.Albums = "ALBUMS"
 
+let local_settings: ISettings
 /** State */
 let local_state: State
 //#endregion
@@ -122,7 +123,6 @@ source.getUserSubscriptions = getUserSubscriptions
 source.getUserPlaylists = getUserPlaylists
 
 source.getPlaybackTracker = getPlaybackTracker
-
 
 if (IS_TESTING) {
     const assert_source: SpotifySource = {
@@ -174,7 +174,7 @@ if (IS_TESTING) {
 //#endregion
 
 //#region enable
-function enable(conf: SourceConfig, settings: Settings, savedState: string | null) {
+function enable(conf: SourceConfig, settings: ISettings, savedState: string | null) {
     if (IS_TESTING) {
         log("IS_TESTING true")
         log("logging configuration")
@@ -184,6 +184,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState: string | nul
         log("logging savedState")
         log(savedState)
     }
+    local_settings = settings
     if (savedState !== null) {
         const state: State = JSON.parse(savedState)
         local_state = state
@@ -2402,7 +2403,7 @@ function load_album_tracks_and_flatten(discography_response: DiscographyResponse
 
         const album_pager = new AlbumPager(first_release.id, offset, pagination_limit, album_metadata_response, album_artist, unix_time)
         songs.push(...album_pager.results)
-        while (album_pager.hasMorePagers()){
+        while (album_pager.hasMorePagers()) {
             album_pager.nextPage()
             songs.push(...album_pager.results)
         }
@@ -3027,7 +3028,10 @@ function getUserSubscriptions(): string[] {
     return following
 }
 
-function getPlaybackTracker(url: string): PlaybackTracker {
+function getPlaybackTracker(url: string): PlaybackTracker | null {
+    if (!local_settings.spotifyActivity) {
+        return null
+    }
     const { content_uri_id, content_type } = parse_content_url(url)
     check_and_update_token()
     return new SpotifyPlaybackTracker(content_uri_id, content_type)
