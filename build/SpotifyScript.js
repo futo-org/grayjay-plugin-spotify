@@ -2493,7 +2493,7 @@ function following_args() {
 function getUserSubscriptions() {
     const { url, headers } = following_args();
     const following_response = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body);
-    let following = following_response.profiles.map(function (profile) {
+    let following = following_response.profiles === undefined ? [] : following_response.profiles.map(function (profile) {
         const { uri_id, uri_type } = parse_uri(profile.uri);
         if (uri_type === "artist") {
             return `${ARTIST_URL_PREFIX}${uri_id}`;

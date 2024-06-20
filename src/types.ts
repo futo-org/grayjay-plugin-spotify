@@ -87,7 +87,7 @@ export type ChannelType = "show" | "user" | "artist" | "genre" | "section" | "co
 export type UriType = "show" | "album" | "track" | "artist" | "playlist" | "section" | "episode" | "user" | "genre" | "collection"
 
 export type FollowingResponse = {
-    readonly profiles: {
+    readonly profiles?: {
         readonly uri: string
     }[]
 }

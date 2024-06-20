@@ -349,7 +349,7 @@ function getHome() {
             section_url: "https://open.spotify.com/content-feed",
             sectionItems: whats_new_response.data.whatsNewFeedItems
         })
-        if(responses[2].code !== 404){
+        if (responses[2].code !== 404) {
             const recently_played_ids: RecentlyPlayedUris = JSON.parse(throw_if_not_200(responses[2]).body)
 
             const { url, headers } = recently_played_details_args(recently_played_ids.playContexts.map(function (uri_obj) {
@@ -2864,7 +2864,7 @@ function following_args() {
 function getUserSubscriptions(): string[] {
     const { url, headers } = following_args()
     const following_response: FollowingResponse = JSON.parse(throw_if_not_200(local_http.GET(url, headers, false)).body)
-    let following: string[] = following_response.profiles.map(function (profile) {
+    let following: string[] = following_response.profiles === undefined ? [] : following_response.profiles.map(function (profile) {
         const { uri_id, uri_type } = parse_uri(profile.uri)
         if (uri_type === "artist") {
             return `${ARTIST_URL_PREFIX}${uri_id}`
@@ -3418,8 +3418,8 @@ function log_passthrough<T>(value: T): T {
     return value
 }
 function throw_if_not_200(response: BridgeHttpResponse): BridgeHttpResponse {
-    if (response.code !== 200){
-        throw new ScriptException("recieved a non 200 response")
+    if (!(response as any).isOk) {
+        throw new ScriptException("Request failed [" + response.code + "] for " + (response as any).url)
     }
     return response
 }
