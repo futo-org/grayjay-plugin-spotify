@@ -2351,16 +2351,8 @@ class FlattenedArtistDiscographyPager extends VideoPager {
         private readonly limit: number
 
     ) {
-        // TODO simplify by removing batching code
         const { url: discography_url, headers: discography_headers } = discography_args(artist_uri_id, offset, limit)
-        const responses = local_http
-            .batch()
-            .GET(discography_url, discography_headers, false)
-            .execute()
-        if (responses[0] === undefined) {
-            throw new ScriptException("unreachable")
-        }
-        const discography_response: DiscographyResponse = JSON.parse(throw_if_not_ok(responses[0]).body)
+        const discography_response: DiscographyResponse = JSON.parse(throw_if_not_ok(local_http.GET(discography_url, discography_headers, false)).body)
 
         const total_albums = discography_response.data.artistUnion.discography.all.totalCount
 
@@ -2407,34 +2399,9 @@ function load_album_tracks_and_flatten(discography_response: DiscographyResponse
             album_pager.nextPage()
             songs.push(...album_pager.results)
         }
-        // const album_pager = new AlbumPager(first_release.id,)
-        // const { url: tracks_url, headers: tracks_headers } = album_tracks_args(id_from_uri(album), track_album_index, 1)
-        // const tracks_response: AlbumTracksResponse = JSON.parse(throw_if_not_200(local_http.GET(tracks_url, tracks_headers, false)).body)
     }
-    log(songs.length)
     return songs
 }
-// function format_discography_flattened(discography_response: DiscographyResponse, artist: PlatformAuthorLink) {
-//     return discography_response.data.artistUnion.discography.all.items.map(function (album) {
-//         const first_release = album.releases.items[0]
-//         if (first_release === undefined) {
-//             throw new ScriptException("unreachable")
-//         }
-//         const thumbnail = first_release.coverArt.sources[0]?.url
-//         if (thumbnail === undefined) {
-//             throw new ScriptException("unreachable")
-//         }
-//         return new PlatformPlaylist({
-//             id: new PlatformID(PLATFORM, first_release.id, plugin.config.id),
-//             name: first_release.name,
-//             author: artist,
-//             datetime: new Date(first_release.date.isoString).getTime() / 1000,
-//             url: `${ALBUM_URL_PREFIX}${first_release.id}`,
-//             videoCount: first_release.tracks.totalCount,
-//             thumbnail
-//         })
-//     })
-// }
 function format_discography(discography_response: DiscographyResponse, artist: PlatformAuthorLink) {
     return discography_response.data.artistUnion.discography.all.items.map(function (album) {
         const first_release = album.releases.items[0]
