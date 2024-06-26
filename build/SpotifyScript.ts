@@ -70,7 +70,7 @@ const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query" as const
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/" as const
 
 const PLATFORM = "Spotify" as const
-// const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0" as const
+const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0" as const
 const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop" as const
 const SPOTIFY_CONNECT_NAME = "Web Player (Grayjay)" as const
 const CLIENT_VERSION = "harmony:4.42.0-2780565f" as const
@@ -196,7 +196,7 @@ function enable(conf: SourceConfig, settings: ISettings, savedState: string | nu
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/
 
         // use the authenticated client to get a logged in bearer token
-        const html = throw_if_not_ok(local_http.GET(home_page, {}, true)).body
+        const html = throw_if_not_ok(local_http.GET(home_page, { "User-Agent": USER_AGENT }, true)).body
 
         const web_player_js_match_result = html.match(web_player_js_regex)
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
@@ -3111,6 +3111,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
 
     }
     override onProgress(_seconds: number, is_playing: boolean): void {
+        log(_seconds)
         if (is_playing) {
             // this ends up lagging behind. 
             this.total_seconds_played += this.interval_seconds
