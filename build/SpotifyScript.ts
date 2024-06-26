@@ -3111,7 +3111,6 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
 
     }
     override onProgress(_seconds: number, is_playing: boolean): void {
-        log(_seconds)
         if (is_playing) {
             // this ends up lagging behind. 
             this.total_seconds_played += this.interval_seconds
