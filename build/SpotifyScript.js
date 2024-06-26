@@ -14,7 +14,7 @@ const COLLECTION_UR_PREFIX = "https://open.spotify.com/collection/";
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query";
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/";
 const PLATFORM = "Spotify";
-// const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0" as const
+const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0";
 const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop";
 const SPOTIFY_CONNECT_NAME = "Web Player (Grayjay)";
 const CLIENT_VERSION = "harmony:4.42.0-2780565f";
@@ -158,7 +158,10 @@ function enable(conf, settings, savedState) {
         const token_regex = /<script id="config" data-testid="config" type="application\/json">({.*?})<\/script><script id="session" data-testid="session" type="application\/json">({.*?})<\/script>/;
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/;
         // use the authenticated client to get a logged in bearer token
-        const html = local_http.GET(home_page, {}, true).body;
+        const html = local_http.GET(home_page, {
+            "User-Agent": USER_AGENT,
+            // Host: "open.spotify.com"
+        }, true).body;
         const web_player_js_match_result = html.match(web_player_js_regex);
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
             throw new ScriptException("regex error");
@@ -2637,6 +2640,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
     onInit(_seconds) {
     }
     onProgress(_seconds, is_playing) {
+        log(_seconds);
         if (is_playing) {
             // this ends up lagging behind. 
             this.total_seconds_played += this.interval_seconds;
@@ -3000,5 +3004,5 @@ function get_gid(song_uri_id) {
 //#endregion
 // export statements are removed during build step
 // used for unit testing in SpotifyScript.test.ts
-// export { get_gid, assert_never, log_passthrough, getPlaybackTracker };
+// export { get_gid, assert_never, log_passthrough };
 //# sourceMappingURL=http://localhost:8080/SpotifyScript.js.map
