@@ -21,6 +21,7 @@
         https://open.spotify.com/album/3UEEPh5wsdhP7SKC31yvhu
 - [ ]   maybe interleave search results
 - [ ]   add whatever gets stuff to show up on the channels and support tabs on the cannel page. i think it is just polycentric stuff but idk
+- [ ]   playlists with local tracks error out
 - [x]   (i think this is fixed) when the liked songs collection is in the recently played genre it doesn't show up in grayjay
 
 ## Grayjay Bugs
