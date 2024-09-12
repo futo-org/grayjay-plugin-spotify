@@ -50,7 +50,7 @@ import {
     type RecentlyPlayedDetails,
     type RecentlyPlayedSection,
     type SectionItemPseudoPlaylist,
-    type ISettings
+    type Settings,
 } from "./types.js"
 
 const CONTENT_REGEX = /^https:\/\/open\.spotify\.com\/(track|episode)\/([a-zA-Z0-9]*)($|\/)/
@@ -90,91 +90,51 @@ Type.Order.Favorites = "Most favorited"
 Type.Feed.Playlists = "PLAYLISTS"
 Type.Feed.Albums = "ALBUMS"
 
-let local_settings: ISettings
+let local_settings: Settings
 /** State */
 let local_state: State
 //#endregion
 
 //#region source methods
-source.enable = enable
-source.disable = disable
-source.saveState = saveState
-source.getHome = getHome
-
-source.getSearchCapabilities = getSearchCapabilities
-source.search = search
-
-source.searchChannels = searchChannels
-source.isChannelUrl = isChannelUrl
-source.getChannel = getChannel
-
-source.getChannelCapabilities = getChannelCapabilities
-source.getChannelContents = getChannelContents
-source.getChannelPlaylists = getChannelPlaylists
-
-source.isContentDetailsUrl = isContentDetailsUrl
-source.getContentDetails = getContentDetails
-
-source.isPlaylistUrl = isPlaylistUrl
-source.searchPlaylists = searchPlaylists
-source.getPlaylist = getPlaylist
-
-source.getUserSubscriptions = getUserSubscriptions
-source.getUserPlaylists = getUserPlaylists
-
-source.getPlaybackTracker = getPlaybackTracker
-
-if (IS_TESTING) {
-    const assert_source: SpotifySource = {
-        enable,
-        disable,
-        saveState,
-        getHome,
-        search,
-        getSearchCapabilities,
-        isContentDetailsUrl,
-        getContentDetails,
-        isChannelUrl,
-        getChannel,
-        getChannelContents,
-        getChannelPlaylists,
-        getChannelCapabilities,
-        searchChannels,
-        isPlaylistUrl,
-        getPlaylist,
-        searchPlaylists,
-        getUserPlaylists,
-        getUserSubscriptions,
-        getPlaybackTracker
-    }
-    if (source.enable === undefined) { assert_never(source.enable) }
-    if (source.disable === undefined) { assert_never(source.disable) }
-    if (source.saveState === undefined) { assert_never(source.saveState) }
-    if (source.getHome === undefined) { assert_never(source.getHome) }
-    if (source.search === undefined) { assert_never(source.search) }
-    if (source.getSearchCapabilities === undefined) { assert_never(source.getSearchCapabilities) }
-    if (source.isContentDetailsUrl === undefined) { assert_never(source.isContentDetailsUrl) }
-    if (source.getContentDetails === undefined) { assert_never(source.getContentDetails) }
-    if (source.isChannelUrl === undefined) { assert_never(source.isChannelUrl) }
-    if (source.getChannel === undefined) { assert_never(source.getChannel) }
-    if (source.getChannelContents === undefined) { assert_never(source.getChannelContents) }
-    if (source.getChannelPlaylists === undefined) { assert_never(source.getChannelPlaylists) }
-    if (source.getChannelCapabilities === undefined) { assert_never(source.getChannelCapabilities) }
-    if (source.searchChannels === undefined) { assert_never(source.searchChannels) }
-    if (source.isPlaylistUrl === undefined) { assert_never(source.isPlaylistUrl) }
-    if (source.getPlaylist === undefined) { assert_never(source.getPlaylist) }
-    if (source.searchPlaylists === undefined) { assert_never(source.searchPlaylists) }
-    if (source.getUserPlaylists === undefined) { assert_never(source.getUserPlaylists) }
-    if (source.getUserSubscriptions === undefined) { assert_never(source.getUserSubscriptions) }
-    if (source.getPlaybackTracker === undefined) { assert_never(source.getPlaybackTracker) }
-    if (IS_TESTING) {
-        log(assert_source)
+const local_source: SpotifySource = {
+    enable,
+    disable,
+    saveState,
+    getHome,
+    search,
+    getSearchCapabilities,
+    isContentDetailsUrl,
+    getContentDetails,
+    isChannelUrl,
+    getChannel,
+    getChannelContents,
+    getChannelCapabilities,
+    searchChannels,
+    isPlaylistUrl,
+    getPlaylist,
+    searchPlaylists,
+    getChannelPlaylists,
+    getPlaybackTracker,
+    getUserPlaylists,
+    getUserSubscriptions
+}
+init_source(local_source)
+function init_source<
+    T extends { readonly [key: string]: string },
+    S extends string,
+    ChannelTypes extends FeedType,
+    SearchTypes extends FeedType,
+    ChannelSearchTypes extends FeedType
+>(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes, any>) {
+    for (const method_key of Object.keys(local_source)) {
+        // @ts-expect-error
+        source[method_key] = local_source[method_key]
     }
 }
 //#endregion
 
 //#region enable
-function enable(conf: SourceConfig, settings: ISettings, savedState: string | null) {
+function enable(conf: SourceConfig, settings: Settings, savedState?: string | null) {
     if (IS_TESTING) {
         log("IS_TESTING true")
         log("logging configuration")
@@ -185,7 +145,7 @@ function enable(conf: SourceConfig, settings: ISettings, savedState: string | nu
         log(savedState)
     }
     local_settings = settings
-    if (savedState !== null) {
+    if (savedState !== null && savedState !== undefined) {
         const state: State = JSON.parse(savedState)
         local_state = state
         // the token stored in state might be old
@@ -670,10 +630,10 @@ function getContentDetails(url: string) {
                 throw new ScriptException("unreachable")
             }
 
-            const codecs = "mp4a.40.2"
+            const codec = "mp4a.40.2"
             const audio_sources = [new AudioUrlWidevineSource({
                 //audio/mp4; codecs="mp4a.40.2
-                name: codecs,
+                name: codec,
                 bitrate: function (format: "MP4_128" | "MP4_256") {
                     switch (format) {
                         case "MP4_128":
@@ -685,7 +645,7 @@ function getContentDetails(url: string) {
                     }
                 }(format),
                 container: "audio/mp4",
-                codecs,
+                codec,
                 duration,
                 url: file_url,
                 language: Language.UNKNOWN,
@@ -841,13 +801,13 @@ function getContentDetails(url: string) {
             if (file_url === undefined) {
                 throw new ScriptException("unreachable")
             }
-            const codecs = "mp4a.40.2"
+            const codec = "mp4a.40.2"
             const audio_sources = [new AudioUrlWidevineSource({
                 //audio/mp4; codecs="mp4a.40.2
-                name: codecs,
+                name: codec,
                 bitrate: 128000,
                 container: "audio/mp4",
-                codecs,
+                codec,
                 duration,
                 url: file_url,
                 language: Language.UNKNOWN,

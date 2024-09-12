@@ -1,5 +1,5 @@
 //#region custom types
-export interface ISettings {
+export type Settings = {
     spotifyActivity: boolean
 }
 
@@ -8,7 +8,8 @@ export type SpotifySource = Required<Omit<Source<
     string,
     ChannelTypeCapabilities,
     SearchTypes,
-    FeedType
+    FeedType,
+    Settings
 >,
     "searchSuggestions"
     | "getComments"
