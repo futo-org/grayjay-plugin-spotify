@@ -17,6 +17,7 @@ export type SpotifySource = Required<Omit<Source<
     | "getSearchChannelContentsCapabilities"
     | "getLiveChatWindow"
     | "searchChannelContents"
+    | "getContentRecommendations"
 >>
 
 export type State = {
@@ -134,12 +135,19 @@ export type LibraryResponse = {
                 readonly totalCount: number
                 readonly items: {
                     readonly item: {
-                        readonly data: SectionItemPodcast | SectionItemPlaylist | SectionItemAlbum | SectionItemArtist | SectionItemAudiobook | SectionItemPseudoPlaylist
+                        readonly data: SectionItemFolder | SectionItemPodcast | SectionItemPlaylist | SectionItemAlbum | SectionItemArtist | SectionItemAudiobook | SectionItemPseudoPlaylist
                     }
                 }[]
             }
         }
     }
+}
+export type SectionItemFolder = {
+    readonly __typename: "Folder"
+    readonly playlistCount: number
+    readonly folderCount: number
+    readonly name: string
+    readonly uri: string
 }
 export type SectionItemPseudoPlaylist = {
     readonly image: {
@@ -691,7 +699,7 @@ export type TrackMetadataResponse = {
 
 export type LyricsResponse = {
     readonly lyrics: {
-        readonly language: "en" |"es"
+        readonly language: "en" | "es"
         readonly lines: {
             readonly startTimeMs: string
             readonly words: string
@@ -901,6 +909,7 @@ export type PlaylistContent = {
             readonly isoString: string
         }
         readonly itemV2: {
+            readonly __typename: "TrackResponseWrapper",
             readonly data: {
                 readonly playcount: string
                 readonly trackDuration: {
@@ -920,6 +929,8 @@ export type PlaylistContent = {
                     }[]
                 }
             }
+        } | {
+            readonly __typename: "LocalTrackResponseWrapper",
         }
     }[]
 }

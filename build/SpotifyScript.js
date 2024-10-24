@@ -1116,7 +1116,10 @@ class SpotifyPlaylistPager extends VideoPager {
     }
 }
 function format_playlist_tracks(content) {
-    return content.items.map(function (playlist_track_metadata) {
+    return content.items.flatMap(function (playlist_track_metadata) {
+        if (playlist_track_metadata.itemV2.__typename === "LocalTrackResponseWrapper") {
+            return [];
+        }
         const song = playlist_track_metadata.itemV2.data;
         const track_uri_id = id_from_uri(song.uri);
         const artist = song.artists.items[0];
@@ -2416,6 +2419,8 @@ function getUserPlaylists() {
                         return [];
                     case "Artist":
                         return [];
+                    case "Folder":
+                        return [];
                     default:
                         throw assert_exhaustive(item, "unreachable");
                 }
@@ -2436,7 +2441,7 @@ function library_args(offset, limit) {
         features: ["LIKED_SONGS", "YOUR_EPISODES", "PRERELEASES"],
         limit,
         offset,
-        flatten: false,
+        flatten: true,
         expandedFolders: [],
         folderUri: null,
         includeFoldersWhenFlattening: true,
@@ -2528,6 +2533,8 @@ function getUserSubscriptions() {
                         return `${SHOW_URL_PREFIX}${id_from_uri(item.uri)}`;
                     case "Artist":
                         return `${ARTIST_URL_PREFIX}${id_from_uri(item.uri)}`;
+                    case "Folder":
+                        return [];
                     default:
                         throw assert_exhaustive(item, "unreachable");
                 }
