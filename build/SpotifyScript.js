@@ -377,7 +377,7 @@ function format_song_and_episode_results(search_response) {
             return new PlatformVideo({
                 id: new PlatformID(PLATFORM, id_from_uri(episode.data.uri), plugin.config.id),
                 name: episode.data.name,
-                author: episode.data.podcastV2.data.__typename === "Podcast" ? new PlatformAuthorLink(new PlatformID(PLATFORM, id_from_uri(episode.data.podcastV2.data.uri), plugin.config.id), episode.data.podcastV2.data.name, `${ARTIST_URL_PREFIX}${id_from_uri(episode.data.podcastV2.data.uri)}`, episode.data.podcastV2.data.coverArt?.sources[0]?.url) : EMPTY_AUTHOR,
+                author: episode.data.podcastV2.data.__typename === "Podcast" ? new PlatformAuthorLink(new PlatformID(PLATFORM, id_from_uri(episode.data.podcastV2.data.uri), plugin.config.id), episode.data.podcastV2.data.name, `${SHOW_URL_PREFIX}${id_from_uri(episode.data.podcastV2.data.uri)}`, episode.data.podcastV2.data.coverArt?.sources[0]?.url) : EMPTY_AUTHOR,
                 url: `${EPISODE_URL_PREFIX}${id_from_uri(episode.data.uri)}`,
                 thumbnails: new Thumbnails(episode.data.coverArt.sources.map(function (image) {
                     return new Thumbnail(image.url, image.height);

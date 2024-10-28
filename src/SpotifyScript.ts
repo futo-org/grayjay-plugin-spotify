@@ -498,7 +498,7 @@ function format_song_and_episode_results(search_response: SearchResponse) {
                 author: episode.data.podcastV2.data.__typename === "Podcast" ? new PlatformAuthorLink(
                     new PlatformID(PLATFORM, id_from_uri(episode.data.podcastV2.data.uri), plugin.config.id),
                     episode.data.podcastV2.data.name,
-                    `${ARTIST_URL_PREFIX}${id_from_uri(episode.data.podcastV2.data.uri)}`,
+                    `${SHOW_URL_PREFIX}${id_from_uri(episode.data.podcastV2.data.uri)}`,
                     episode.data.podcastV2.data.coverArt?.sources[0]?.url
                 ) : EMPTY_AUTHOR,
                 url: `${EPISODE_URL_PREFIX}${id_from_uri(episode.data.uri)}`,
