@@ -59,7 +59,7 @@ const local_source = {
 init_source(local_source);
 function init_source(local_source) {
     for (const method_key of Object.keys(local_source)) {
-        // @ts-expect-error
+        // @ts-expect-error assign to readonly constant source object
         source[method_key] = local_source[method_key];
     }
 }
@@ -546,7 +546,7 @@ function getContentDetails(url) {
                 throw new UnavailableException("login or purchase to play premium content");
             }
             if (episode_metadata_response.data.episodeUnionV2.mediaTypes.length === 2) {
-                function assert_video(_mediaTypes) { }
+                function assert_video(media_types) { log(media_types); }
                 assert_video(episode_metadata_response.data.episodeUnionV2.mediaTypes);
                 //TODO since we don't use the transcript we should only load it when audio only podcasts are played
                 // TODO handle video podcasts. Grayjay doesn't currently support the websocket functionality necessary
@@ -1603,7 +1603,7 @@ function getChannel(url) {
                 subscribers: user_response.followers_count
             });
         }
-        case "artist":
+        case "artist": {
             const { url, headers } = artist_metadata_args(channel_uri_id);
             const artist_metadata_response = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body);
             const thumbnail = artist_metadata_response.data.artistUnion.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING;
@@ -1623,6 +1623,7 @@ function getChannel(url) {
                 ...channel,
                 banner
             });
+        }
         case "content-feed":
             throw new ScriptException("not implemented");
         default:
@@ -1809,7 +1810,7 @@ function getChannelContents(url, type, order, filters) {
             const playlists = format_page(browse_page_response.data.browse.sections.items, limit, browse_page_response.data.browse.header.title.transformedLabel);
             return new ContentPager(playlists, false);
         }
-        case "show":
+        case "show": {
             const { url: metadata_url, headers: metadata_headers } = show_metadata_args(channel_uri_id);
             const chapters_limit = 50;
             const episodes_limit = 6;
@@ -1839,6 +1840,7 @@ function getChannelContents(url, type, order, filters) {
                 default:
                     throw assert_exhaustive(show_metadata_response.data.podcastUnionV2, "unreachable");
             }
+        }
         case "artist":
             return new FlattenedArtistDiscographyPager(channel_uri_id, 0, 2);
         case "user":
@@ -2590,8 +2592,10 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                     if (i === undefined) {
                         throw new ScriptException("issue generating device id");
                     }
-                    i < 16 && (t += "0"),
-                        t += i.toString(16);
+                    if (i < 16) {
+                        (t += "0");
+                    }
+                    t += i.toString(16);
                 }
                 return t;
             }(gt(t));
@@ -2623,7 +2627,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                 this.duration = response.data.episodeUnionV2.duration.totalMilliseconds;
                 break;
             }
-            case "track":
+            case "track": {
                 const { url, headers } = track_metadata_args(uri_id);
                 const response = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body);
                 const track_album_index = response.data.trackUnion.trackNumber - 1;
@@ -2644,11 +2648,10 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                     track_album_index
                 };
                 break;
+            }
             default:
                 throw assert_exhaustive(content_type, "unreachable");
         }
-    }
-    onInit(_seconds) {
     }
     onProgress(_seconds, is_playing) {
         if (is_playing) {
@@ -2959,7 +2962,7 @@ const Q = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const ee = [];
 ee.length = 256;
 for (let ke = 0; ke < 256; ke++)
-    // @ts-expect-error
+    // @ts-expect-error ignore JavaScript error
     ee[ke] = Z[ke >> 4] + Z[15 & ke];
 const te = [];
 te.length = 128;
@@ -2971,30 +2974,30 @@ function get_gid(song_uri_id) {
             return null;
         const t = 2.3283064365386963e-10, n = 4294967296, i = 238328;
         let o, r, a, s, c;
-        // @ts-expect-error
+        // @ts-expect-error ignore JavaScript error
         return o = 56800235584 * te[e.charCodeAt(0)] + 916132832 * te[e.charCodeAt(1)] + 14776336 * te[e.charCodeAt(2)] + 238328 * te[e.charCodeAt(3)] + 3844 * te[e.charCodeAt(4)] + 62 * te[e.charCodeAt(5)] + te[e.charCodeAt(6)],
             r = o * t | 0,
             o -= r * n,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(7)] + 62 * te[e.charCodeAt(8)] + te[e.charCodeAt(9)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
             r = r * i + c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(10)] + 62 * te[e.charCodeAt(11)] + te[e.charCodeAt(12)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
             r = r * i + c,
             r -= (c = r * t | 0) * n,
             a = c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(13)] + 62 * te[e.charCodeAt(14)] + te[e.charCodeAt(15)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
             r = r * i + c,
             r -= (c = r * t | 0) * n,
             a = a * i + c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(16)] + 62 * te[e.charCodeAt(17)] + te[e.charCodeAt(18)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
@@ -3003,7 +3006,7 @@ function get_gid(song_uri_id) {
             a = a * i + c,
             a -= (c = a * t | 0) * n,
             s = c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(19)] + 62 * te[e.charCodeAt(20)] + te[e.charCodeAt(21)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
@@ -3013,12 +3016,13 @@ function get_gid(song_uri_id) {
             a -= (c = a * t | 0) * n,
             s = s * i + c,
             s -= (c = s * t | 0) * n,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c ? null : ee[s >>> 24] + ee[s >>> 16 & 255] + ee[s >>> 8 & 255] + ee[255 & s] + ee[a >>> 24] + ee[a >>> 16 & 255] + ee[a >>> 8 & 255] + ee[255 & a] + ee[r >>> 24] + ee[r >>> 16 & 255] + ee[r >>> 8 & 255] + ee[255 & r] + ee[o >>> 24] + ee[o >>> 16 & 255] + ee[o >>> 8 & 255] + ee[255 & o];
     }(song_uri_id) : song_uri_id;
 }
 //#endregion
+console.log(assert_never, log_passthrough);
 // export statements are removed during build step
 // used for unit testing in SpotifyScript.test.ts
 // export { get_gid, assert_never, log_passthrough };
-//# sourceMappingURL=http://localhost:8080/SpotifyScript.js.map
+//# sourceMappingURL=SpotifyScript.js.map

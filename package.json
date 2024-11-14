@@ -2,19 +2,8 @@
     "name": "grayjay-spotify-plugin",
     "version": "1.0.0",
     "description": "make spotify work",
-    "engines": {
-        "node": ">=20.0.0"
-    },
-    "module": "src/SpotifyScript.ts",
-    "scripts": {
-        "bun-test": "bun run build && node --test",
-        "test": "npm run build && node --test",
-        "build": "tsc && cp src/SpotifyScript.[tj]s* build && sed -i '/^export/s/^/\\/\\/ /' build/SpotifyScript.[tj]s",
-        "bun-release": "bun install && bun update && bun x npm-check-updates && bun run bun-test",
-        "npm-release": "npm install && npm update && npx npm-check-updates && npm test",
-        "bun-dev": "bun run build && bun x http-server build",
-        "npm-dev": "npm run build && npx http-server build"
-    },
+    "homepage": "https://gitlab.futo.org/videostreaming/plugins/spotify",
+    "type": "module",
     "repository": {
         "type": "git",
         "url": "git+https://gitlab.futo.org/videostreaming/plugins/spotify.git"
@@ -28,15 +17,23 @@
     "bugs": {
         "url": "https://gitlab.futo.org/videostreaming/plugins/spotify/issues"
     },
-    "homepage": "https://gitlab.futo.org/videostreaming/plugins/spotify",
-    "peerDependencies": {
-        "typescript": "^5.1.3"
-    },
-    "type": "module",
+    "dependencies": {},
     "devDependencies": {
-        "@grayjay/plugin": "gitlab:kaidelorenzo/grayjay-plugin-types#3018e416cd4f158a20541000551cec2a9763dad3",
-        "@types/node": "^22.8.1",
-        "http-server": "^14.1.1",
-        "npm-check-updates": "^17.1.8"
+        "@types/node": "^22.9.0",
+        "@eslint/js": "^9.14.0",
+        "@types/eslint__js": "^8.42.3",
+        "eslint": "^9.14.0",
+        "typescript": "^5.6.3",
+        "typescript-eslint": "^8.14.0",
+        "@kaidelorenzo/grayjay-polyfill": "gitlab:kaidelorenzo/grayjay-polyfill#9a48957ba321192416e820002aab528104567654",
+        "@types/grayjay-source": "gitlab:kaidelorenzo/grayjay-plugin-types#ddffcd5573f102c45d0ac4d8a5f87452e76ffa77"
+    },
+    "scripts": {
+        "test": "node --test",
+        "debug-build": "node src/utilities/build.js \"http://localhost:8080\"",
+        "build": "node src/utilities/build.js",
+        "dev": "node src/utilities/dev.js",
+        "lint": "npx eslint .",
+        "release": "node src/utilities/release.js"
     }
 }
