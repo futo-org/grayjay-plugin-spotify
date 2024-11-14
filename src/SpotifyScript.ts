@@ -65,7 +65,7 @@ const ALBUM_URL_PREFIX = "https://open.spotify.com/album/" as const
 const PAGE_URL_PREFIX = "https://open.spotify.com/genre/" as const
 const SECTION_URL_PREFIX = "https://open.spotify.com/section/" as const
 const PLAYLIST_URL_PREFIX = "https://open.spotify.com/playlist/" as const
-const COLLECTION_UR_PREFIX = "https://open.spotify.com/collection/" as const
+const COLLECTION_URL_PREFIX = "https://open.spotify.com/collection/" as const
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query" as const
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/" as const
 
@@ -331,26 +331,46 @@ function getHome() {
                 sectionItems: {
                     items: recently_played_response.data.lookup.flatMap(function (section_item) {
                         if (section_item.__typename === "UnknownTypeWrapper") {
-                            if (section_item._uri !== `spotify:user:${local_state.username}:collection`) {
-                                throw new ScriptException("unexpected uri")
-                            }
-                            return {
-                                content: {
-                                    data: {
-                                        image: {
-                                            sources: [{
-                                                "height": 640,
-                                                "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
-                                                "width": 640
-                                            }]
+                            if (section_item._uri === `spotify:user:${local_state.username}:collection`) {
+                                return {
+                                    content: {
+                                        data: {
+                                            image: {
+                                                sources: [{
+                                                    "height": 640,
+                                                    "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                                                    "width": 640
+                                                }]
+                                            },
+                                            name: "Liked Songs",
+                                            __typename: "PseudoPlaylist",
+                                            uri: "spotify:collection:tracks"
                                         },
-                                        name: "Liked Songs",
-                                        __typename: "PseudoPlaylist",
-                                        uri: "spotify:collection:tracks"
-                                    },
-                                    __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                        __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                    }
                                 }
                             }
+                            if (section_item._uri === `spotify:user:${local_state.username}:collection:your-episodes`) {
+                                return {
+                                    content: {
+                                        data: {
+                                            image: {
+                                                sources: [{
+                                                    "height": 640,
+                                                    "url": "https://misc.spotifycdn.com/your-episodes/SE-640.png",
+                                                    "width": 640
+                                                }]
+                                            },
+                                            name: "Your Episodes",
+                                            __typename: "PseudoPlaylist",
+                                            uri: "spotify:collection:your-episodes"
+                                        },
+                                        __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                    }
+                                }
+                            }
+                            log(section_item)
+                            throw new ScriptException("unexpected uri")
                         }
                         return {
                             content: {
@@ -572,8 +592,11 @@ function getContentDetails(url: string) {
                             return "English"
                         case "es":
                             return "Español"
+                        case "fr":
+                            return "French"
                         default:
-                            throw assert_exhaustive(lyrics_response.lyrics.language, "unreachable")
+                            log(`Spotify log: unknown language: ${lyrics_response.lyrics.language}`)
+                            return lyrics_response.lyrics.language
                     }
                 }()
                 const convert = milliseconds_to_WebVTT_timestamp
@@ -2507,7 +2530,7 @@ function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | S
             const author = section_as_author
             const platform_playlist = {
                 id: new PlatformID(PLATFORM, id_from_uri(section.uri), plugin.config.id),
-                url: `${COLLECTION_UR_PREFIX}${id_from_uri(section.uri)}`,
+                url: `${COLLECTION_URL_PREFIX}${id_from_uri(section.uri)}`,
                 name: section.name,
                 author,
                 // TODO load some other way videoCount:
@@ -2826,7 +2849,7 @@ function getUserPlaylists() {
                     case "Playlist":
                         return `${PLAYLIST_URL_PREFIX}${id_from_uri(item.uri)}`
                     case "PseudoPlaylist":
-                        return `${COLLECTION_UR_PREFIX}${id_from_uri(item.uri)}`
+                        return `${COLLECTION_URL_PREFIX}${id_from_uri(item.uri)}`
                     case "Audiobook":
                         return []
                     case "Podcast":
