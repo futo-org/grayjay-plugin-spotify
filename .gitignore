@@ -1,5 +1,9 @@
 node_modules
 *.js
 *.js.map
+tsconfig.tsbuildinfo
+_dist
 
+!eslint.config.js
 !build/*
+build/types.js*

@@ -65,7 +65,7 @@ const ALBUM_URL_PREFIX = "https://open.spotify.com/album/" as const
 const PAGE_URL_PREFIX = "https://open.spotify.com/genre/" as const
 const SECTION_URL_PREFIX = "https://open.spotify.com/section/" as const
 const PLAYLIST_URL_PREFIX = "https://open.spotify.com/playlist/" as const
-const COLLECTION_UR_PREFIX = "https://open.spotify.com/collection/" as const
+const COLLECTION_URL_PREFIX = "https://open.spotify.com/collection/" as const
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query" as const
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/" as const
 
@@ -125,9 +125,9 @@ function init_source<
     ChannelTypes extends FeedType,
     SearchTypes extends FeedType,
     ChannelSearchTypes extends FeedType
->(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes, any>) {
+>(local_source: Source<T, S, ChannelTypes, SearchTypes, ChannelSearchTypes, Settings>) {
     for (const method_key of Object.keys(local_source)) {
-        // @ts-expect-error
+        // @ts-expect-error assign to readonly constant source object
         source[method_key] = local_source[method_key]
     }
 }
@@ -331,26 +331,46 @@ function getHome() {
                 sectionItems: {
                     items: recently_played_response.data.lookup.flatMap(function (section_item) {
                         if (section_item.__typename === "UnknownTypeWrapper") {
-                            if (section_item._uri !== `spotify:user:${local_state.username}:collection`) {
-                                throw new ScriptException("unexpected uri")
-                            }
-                            return {
-                                content: {
-                                    data: {
-                                        image: {
-                                            sources: [{
-                                                "height": 640,
-                                                "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
-                                                "width": 640
-                                            }]
+                            if (section_item._uri === `spotify:user:${local_state.username}:collection`) {
+                                return {
+                                    content: {
+                                        data: {
+                                            image: {
+                                                sources: [{
+                                                    "height": 640,
+                                                    "url": "https://misc.scdn.co/liked-songs/liked-songs-640.png",
+                                                    "width": 640
+                                                }]
+                                            },
+                                            name: "Liked Songs",
+                                            __typename: "PseudoPlaylist",
+                                            uri: "spotify:collection:tracks"
                                         },
-                                        name: "Liked Songs",
-                                        __typename: "PseudoPlaylist",
-                                        uri: "spotify:collection:tracks"
-                                    },
-                                    __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                        __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                    }
                                 }
                             }
+                            if (section_item._uri === `spotify:user:${local_state.username}:collection:your-episodes`) {
+                                return {
+                                    content: {
+                                        data: {
+                                            image: {
+                                                sources: [{
+                                                    "height": 640,
+                                                    "url": "https://misc.spotifycdn.com/your-episodes/SE-640.png",
+                                                    "width": 640
+                                                }]
+                                            },
+                                            name: "Your Episodes",
+                                            __typename: "PseudoPlaylist",
+                                            uri: "spotify:collection:your-episodes"
+                                        },
+                                        __typename: "LibraryPseudoPlaylistResponseWrapper"
+                                    }
+                                }
+                            }
+                            log(section_item)
+                            throw new ScriptException("unexpected uri")
                         }
                         return {
                             content: {
@@ -572,8 +592,11 @@ function getContentDetails(url: string) {
                             return "English"
                         case "es":
                             return "Español"
+                        case "fr":
+                            return "French"
                         default:
-                            throw assert_exhaustive(lyrics_response.lyrics.language, "unreachable")
+                            log(`Spotify log: unknown language: ${lyrics_response.lyrics.language}`)
+                            return lyrics_response.lyrics.language
                     }
                 }()
                 const convert = milliseconds_to_WebVTT_timestamp
@@ -693,7 +716,7 @@ function getContentDetails(url: string) {
             }
 
             if (episode_metadata_response.data.episodeUnionV2.mediaTypes.length === 2) {
-                function assert_video(_mediaTypes: ["AUDIO", "VIDEO"]) { }
+                function assert_video(media_types: ["AUDIO", "VIDEO"]) { log(media_types) }
                 assert_video(episode_metadata_response.data.episodeUnionV2.mediaTypes)
                 //TODO since we don't use the transcript we should only load it when audio only podcasts are played
 
@@ -1357,7 +1380,7 @@ class SpotifyPlaylistPager extends VideoPager {
 }
 function format_playlist_tracks(content: PlaylistContent) {
     return content.items.flatMap(function (playlist_track_metadata) {
-        if(playlist_track_metadata.itemV2.__typename === "LocalTrackResponseWrapper"){
+        if (playlist_track_metadata.itemV2.__typename === "LocalTrackResponseWrapper") {
             return []
         }
         const song = playlist_track_metadata.itemV2.data
@@ -1882,7 +1905,7 @@ function getChannel(url: string): PlatformChannel {
                 subscribers: user_response.followers_count
             })
         }
-        case "artist":
+        case "artist": {
             const { url, headers } = artist_metadata_args(channel_uri_id)
             const artist_metadata_response: ArtistMetadataResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             const thumbnail = artist_metadata_response.data.artistUnion.visuals.avatarImage?.sources[0]?.url ?? HARDCODED_EMPTY_STRING
@@ -1902,6 +1925,7 @@ function getChannel(url: string): PlatformChannel {
                 ...channel,
                 banner
             })
+        }
         case "content-feed":
             throw new ScriptException("not implemented")
         default:
@@ -2128,7 +2152,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
 
             return new ContentPager(playlists, false)
         }
-        case "show":
+        case "show": {
             const { url: metadata_url, headers: metadata_headers } = show_metadata_args(channel_uri_id)
             const chapters_limit = 50
             const episodes_limit = 6
@@ -2164,6 +2188,7 @@ function getChannelContents(url: string, type: ChannelTypeCapabilities | null, o
                 default:
                     throw assert_exhaustive(show_metadata_response.data.podcastUnionV2, "unreachable")
             }
+        }
         case "artist":
             return new FlattenedArtistDiscographyPager(channel_uri_id, 0, 2)
         case "user":
@@ -2505,7 +2530,7 @@ function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | S
             const author = section_as_author
             const platform_playlist = {
                 id: new PlatformID(PLATFORM, id_from_uri(section.uri), plugin.config.id),
-                url: `${COLLECTION_UR_PREFIX}${id_from_uri(section.uri)}`,
+                url: `${COLLECTION_URL_PREFIX}${id_from_uri(section.uri)}`,
                 name: section.name,
                 author,
                 // TODO load some other way videoCount:
@@ -2824,7 +2849,7 @@ function getUserPlaylists() {
                     case "Playlist":
                         return `${PLAYLIST_URL_PREFIX}${id_from_uri(item.uri)}`
                     case "PseudoPlaylist":
-                        return `${COLLECTION_UR_PREFIX}${id_from_uri(item.uri)}`
+                        return `${COLLECTION_URL_PREFIX}${id_from_uri(item.uri)}`
                     case "Audiobook":
                         return []
                     case "Podcast":
@@ -3015,8 +3040,10 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                     if (i === undefined) {
                         throw new ScriptException("issue generating device id")
                     }
-                    i < 16 && (t += "0"),
-                        t += i.toString(16)
+                    if (i < 16) {
+                        (t += "0")
+                    }
+                    t += i.toString(16)
                 }
                 return t
             }(gt(t))
@@ -3049,7 +3076,7 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                 this.duration = response.data.episodeUnionV2.duration.totalMilliseconds
                 break
             }
-            case "track":
+            case "track": {
                 const { url, headers } = track_metadata_args(uri_id)
                 const response: TrackMetadataResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
                 const track_album_index = response.data.trackUnion.trackNumber - 1
@@ -3070,12 +3097,10 @@ class SpotifyPlaybackTracker extends PlaybackTracker {
                     track_album_index
                 }
                 break
+            }
             default:
                 throw assert_exhaustive(content_type, "unreachable")
         }
-    }
-    override onInit(_seconds: number): void {
-
     }
     override onProgress(_seconds: number, is_playing: boolean): void {
         if (is_playing) {
@@ -3472,7 +3497,7 @@ function log_passthrough<T>(value: T): T {
     return value
 }
 function throw_if_not_ok<T>(response: BridgeHttpResponse<T>): BridgeHttpResponse<T> {
-    if (!(response as any).isOk) {
+    if (!response.isOk) {
         throw new ScriptException(`Request failed [${response.code}] for ${response.url}`)
     }
     return response
@@ -3496,7 +3521,7 @@ const Q = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const ee: string[] = []
 ee.length = 256
 for (let ke = 0; ke < 256; ke++)
-    // @ts-expect-error
+    // @ts-expect-error ignore JavaScript error
     ee[ke] = Z[ke >> 4] + Z[15 & ke]
 const te: number[] = []
 te.length = 128
@@ -3511,30 +3536,30 @@ function get_gid(song_uri_id: string) {
             , n = 4294967296
             , i = 238328
         let o, r, a, s, c
-        // @ts-expect-error
+        // @ts-expect-error ignore JavaScript error
         return o = 56800235584 * te[e.charCodeAt(0)] + 916132832 * te[e.charCodeAt(1)] + 14776336 * te[e.charCodeAt(2)] + 238328 * te[e.charCodeAt(3)] + 3844 * te[e.charCodeAt(4)] + 62 * te[e.charCodeAt(5)] + te[e.charCodeAt(6)],
             r = o * t | 0,
             o -= r * n,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(7)] + 62 * te[e.charCodeAt(8)] + te[e.charCodeAt(9)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
             r = r * i + c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(10)] + 62 * te[e.charCodeAt(11)] + te[e.charCodeAt(12)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
             r = r * i + c,
             r -= (c = r * t | 0) * n,
             a = c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(13)] + 62 * te[e.charCodeAt(14)] + te[e.charCodeAt(15)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
             r = r * i + c,
             r -= (c = r * t | 0) * n,
             a = a * i + c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(16)] + 62 * te[e.charCodeAt(17)] + te[e.charCodeAt(18)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
@@ -3543,7 +3568,7 @@ function get_gid(song_uri_id: string) {
             a = a * i + c,
             a -= (c = a * t | 0) * n,
             s = c,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c = 3844 * te[e.charCodeAt(19)] + 62 * te[e.charCodeAt(20)] + te[e.charCodeAt(21)],
             o = o * i + c,
             o -= (c = o * t | 0) * n,
@@ -3553,16 +3578,13 @@ function get_gid(song_uri_id: string) {
             a -= (c = a * t | 0) * n,
             s = s * i + c,
             s -= (c = s * t | 0) * n,
-            // @ts-expect-error
+            // @ts-expect-error ignore JavaScript error
             c ? null : ee[s >>> 24] + ee[s >>> 16 & 255] + ee[s >>> 8 & 255] + ee[255 & s] + ee[a >>> 24] + ee[a >>> 16 & 255] + ee[a >>> 8 & 255] + ee[255 & a] + ee[r >>> 24] + ee[r >>> 16 & 255] + ee[r >>> 8 & 255] + ee[255 & r] + ee[o >>> 24] + ee[o >>> 16 & 255] + ee[o >>> 8 & 255] + ee[255 & o]
     }(song_uri_id) : song_uri_id
 }
 //#endregion
 
+console.log(assert_never, log_passthrough)
 // export statements are removed during build step
 // used for unit testing in SpotifyScript.test.ts
-// export {
-    get_gid,
-    assert_never,
-    log_passthrough
-}
+// export { get_gid, assert_never, log_passthrough }

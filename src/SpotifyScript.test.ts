@@ -2,7 +2,7 @@
 import { describe, test } from "node:test"
 import assert from "node:assert"
 // initializes global state
-import "@grayjay/plugin/source.js"
+import "@kaidelorenzo/grayjay-polyfill"
 
 import { get_gid } from "./SpotifyScript.js"
 //#endregion
