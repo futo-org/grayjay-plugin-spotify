@@ -263,7 +263,7 @@ function getHome() {
                                 };
                             }
                             log(section_item);
-                            throw new ScriptException("unexpected uri");
+                            throw new ScriptException(`unexpected uri: ${section_item._uri}`);
                         }
                         return {
                             content: {
