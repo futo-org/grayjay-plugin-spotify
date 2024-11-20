@@ -2863,7 +2863,7 @@ function getUserPlaylists() {
                     case "Folder":
                         return []
                     default:
-                        throw assert_exhaustive(item, "unreachable")
+                        throw assert_exhaustive(item, `unknown item type: item.__typename`)
                 }
             })
         ]
@@ -3472,16 +3472,16 @@ function parse_uri(uri: string) {
     const match_result = uri.match(/^spotify:(show|album|track|artist|playlist|section|episode|user|genre|collection):([0-9a-zA-Z]*|tracks|your-episodes)$/)
     if (match_result === null) {
         log(uri)
-        throw new ScriptException("regex error")
+        throw new ScriptException(`regex error processing: ${uri}`)
     }
     const maybe_type = match_result[1]
     if (maybe_type === undefined) {
-        throw new ScriptException("regex error")
+        throw new ScriptException(`regex error processing: ${uri}`)
     }
     const uri_type: UriType = maybe_type as UriType
     const uri_id = match_result[2]
     if (uri_id === undefined) {
-        throw new ScriptException("regex error")
+        throw new ScriptException(`regex error processing: ${uri}`)
     }
     return { uri_id, uri_type }
 }
