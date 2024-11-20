@@ -262,6 +262,10 @@ function getHome() {
                                     }
                                 };
                             }
+                            const regex = /^spotify:user:[a-zA-Z0-9]*?:collection:artist/;
+                            if (regex.test(section_item._uri)) {
+                                return [];
+                            }
                             log(section_item);
                             throw new ScriptException(`unexpected uri: ${section_item._uri}`);
                         }
