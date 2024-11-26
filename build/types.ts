@@ -850,6 +850,7 @@ export type Tracks = {
 export type AlbumResponse = {
     readonly data: {
         readonly albumUnion: {
+            readonly uri: string
             readonly name: string
             readonly tracks: Tracks
             readonly artists: {
@@ -861,7 +862,6 @@ export type AlbumResponse = {
             readonly date: {
                 readonly isoString: string
             }
-
         }
     }
 }
@@ -888,6 +888,7 @@ type Owner = {
 export type PlaylistResponse = {
     readonly data: {
         readonly playlistV2: {
+            readonly uri: string
             readonly name: string
             readonly ownerV2: Owner
             readonly images: {

@@ -467,7 +467,7 @@ function getContentDetails(url) {
                 return accumulator.height > current.height ? accumulator : current;
             });
             let subtitles = [];
-            if (results[2] !== undefined && results[2].code !== 404) {
+            if (results[2] !== undefined && results[2].code !== 404 && results[2].code !== 403) {
                 const lyrics_response = JSON.parse(throw_if_not_ok(results[2]).body);
                 const subtitle_name = function () {
                     switch (lyrics_response.lyrics.language) {
@@ -948,11 +948,16 @@ function getPlaylist(url) {
             if (album_artist === undefined) {
                 throw new ScriptException("missing album artist");
             }
+            const album_art_url = album_metadata_response.data.albumUnion.coverArt.sources[0]?.url;
+            if (album_art_url === undefined) {
+                throw new ScriptException(`missing album art for: ${album_metadata_response.data.albumUnion.uri}`);
+            }
             const unix_time = new Date(album_metadata_response.data.albumUnion.date.isoString).getTime() / 1000;
             return new PlatformPlaylistDetails({
                 id: new PlatformID(PLATFORM, playlist_uri_id, plugin.config.id),
                 name: album_metadata_response.data.albumUnion.name,
                 author: new PlatformAuthorLink(new PlatformID(PLATFORM, album_artist.id, plugin.config.id), album_artist.profile.name, `${ARTIST_URL_PREFIX}${album_artist.id}`, album_artist.visuals.avatarImage.sources[album_artist.visuals.avatarImage.sources.length - 1]?.url),
+                thumbnail: album_art_url,
                 datetime: unix_time,
                 url: `${ALBUM_URL_PREFIX}${playlist_uri_id}`,
                 videoCount: album_metadata_response.data.albumUnion.tracks.totalCount,
@@ -968,14 +973,21 @@ function getPlaylist(url) {
             const { url, headers } = fetch_playlist_args(playlist_uri_id, offset, pagination_limit);
             const playlist_response = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body);
             const owner = playlist_response.data.playlistV2.ownerV2.data;
-            return new PlatformPlaylistDetails({
+            const thumbnail_url = playlist_response.data.playlistV2.images.items[0]?.sources[0]?.url;
+            if (thumbnail_url === undefined) {
+                log(`Spotify log: missing playlist thumbnail for: ${playlist_response.data.playlistV2.uri}`);
+            }
+            const playlist_def = {
                 id: new PlatformID(PLATFORM, playlist_uri_id, plugin.config.id),
                 name: playlist_response.data.playlistV2.name,
                 author: new PlatformAuthorLink(new PlatformID(PLATFORM, owner.username, plugin.config.id), owner.name, `${ARTIST_URL_PREFIX}${owner.username}`, owner.avatar?.sources[owner.avatar.sources.length - 1]?.url),
                 url: `${ALBUM_URL_PREFIX}${playlist_uri_id}`,
                 videoCount: playlist_response.data.playlistV2.content.totalCount,
                 contents: new SpotifyPlaylistPager(playlist_uri_id, offset, pagination_limit, playlist_response)
-            });
+            };
+            return new PlatformPlaylistDetails(thumbnail_url === undefined
+                ? playlist_def
+                : { ...playlist_def, thumbnail: thumbnail_url });
         }
         case "collection": {
             if (!bridge.isLoggedIn()) {
@@ -998,6 +1010,7 @@ function getPlaylist(url) {
                         `${USER_URL_PREFIX}${username}`),
                         url: "https://open.spotify.com/collection/your-episodes",
                         videoCount: response.data.me.library.episodes.totalCount,
+                        thumbnail: "https://misc.spotifycdn.com/your-episodes/SE-300.png",
                         contents: new LikedEpisodesPager(0, limit, response)
                     });
                 }
@@ -1016,6 +1029,7 @@ function getPlaylist(url) {
                         `${USER_URL_PREFIX}${username}`),
                         url: "https://open.spotify.com/collection/tracks",
                         videoCount: response.data.me.library.tracks.totalCount,
+                        thumbnail: "https://misc.scdn.co/liked-songs/liked-songs-300.png",
                         contents: new LikedTracksPager(0, limit, response)
                     });
                 }
@@ -2113,7 +2127,7 @@ function format_section_item(section, section_as_author) {
             })?.value;
             const image_url = section.images.items[0]?.sources[0]?.url;
             if (image_url === undefined) {
-                throw new ScriptException(`missing playlist thumbnail for: ${section.uri}`);
+                log(`Spotify log: missing playlist thumbnail for: ${section.uri}`);
             }
             let author = section_as_author;
             // TODO we might want to look up the username of the playlist if it is missing instead of using the section/page/genre as the channel
@@ -2123,21 +2137,26 @@ function format_section_item(section, section_as_author) {
                 }
                 author = new PlatformAuthorLink(new PlatformID(PLATFORM, section.ownerV2.data.username, plugin.config.id), section.ownerV2.data.name, `${USER_URL_PREFIX}${section.ownerV2.data.username}`, section.ownerV2.data.avatar?.sources[0]?.url);
             }
-            const platform_playlist = {
+            let platform_playlist_def = {
                 id: new PlatformID(PLATFORM, id_from_uri(section.uri), plugin.config.id),
                 url: `${PLAYLIST_URL_PREFIX}${id_from_uri(section.uri)}`,
                 name: section.name,
                 author,
                 // TODO load some other way videoCount:
-                thumbnail: image_url
             };
             if (created_iso !== undefined) {
-                return new PlatformPlaylist({
-                    ...platform_playlist,
+                platform_playlist_def = {
+                    ...platform_playlist_def,
                     datetime: new Date(created_iso).getTime() / 1000
-                });
+                };
             }
-            return new PlatformPlaylist(platform_playlist);
+            if (image_url !== undefined) {
+                platform_playlist_def = {
+                    ...platform_playlist_def,
+                    thumbnail: image_url
+                };
+            }
+            return new PlatformPlaylist(platform_playlist_def);
         }
         case "Episode": {
             if (section.podcastV2.data.__typename === "NotFound" || section.releaseDate === null) {
