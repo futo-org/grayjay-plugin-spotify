@@ -350,7 +350,10 @@ function getHome() {
                                     }
                                 }
                             }
-                            if (section_item._uri === `spotify:user:${local_state.username}:collection:your-episodes`) {
+                            if (
+                                section_item._uri === `spotify:user:${local_state.username}:collection:your-episodes`
+                                || section_item._uri === "spotify:collection:podcasts:episodes"
+                            ) {
                                 return {
                                     content: {
                                         data: {
@@ -370,12 +373,12 @@ function getHome() {
                                 }
                             }
                             const artist_collection_regex = /^spotify:user:[a-zA-Z0-9]*?:collection:artist/
-                            if(artist_collection_regex.test(section_item._uri)){
+                            if (artist_collection_regex.test(section_item._uri)) {
                                 return []
                             }
                             // ignore legacy stations
                             const station_regex = /^spotify:station:track:/
-                            if(station_regex.test(section_item._uri)){
+                            if (station_regex.test(section_item._uri)) {
                                 return []
                             }
                             log(section_item)
@@ -3528,7 +3531,7 @@ function assert_exhaustive(value: never, exception_message: string): ScriptExcep
 function assert_exhaustive(value: never, exception_message?: string): ScriptException | undefined {
     log(["Spotify log:", value])
     if (exception_message !== undefined) {
-        return new ScriptException(exception_message )
+        return new ScriptException(exception_message)
     }
     return
 }

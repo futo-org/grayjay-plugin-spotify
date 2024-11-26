@@ -243,7 +243,8 @@ function getHome() {
                                     }
                                 };
                             }
-                            if (section_item._uri === `spotify:user:${local_state.username}:collection:your-episodes`) {
+                            if (section_item._uri === `spotify:user:${local_state.username}:collection:your-episodes`
+                                || section_item._uri === "spotify:collection:podcasts:episodes") {
                                 return {
                                     content: {
                                         data: {
