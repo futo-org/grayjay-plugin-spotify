@@ -369,8 +369,13 @@ function getHome() {
                                     }
                                 }
                             }
-                            const regex = /^spotify:user:[a-zA-Z0-9]*?:collection:artist/
-                            if(regex.test(section_item._uri)){
+                            const artist_collection_regex = /^spotify:user:[a-zA-Z0-9]*?:collection:artist/
+                            if(artist_collection_regex.test(section_item._uri)){
+                                return []
+                            }
+                            // ignore legacy stations
+                            const station_regex = /^spotify:station:track:/
+                            if(station_regex.test(section_item._uri)){
                                 return []
                             }
                             log(section_item)
@@ -2470,7 +2475,7 @@ function format_section_item(section: SectionItemAlbum | SectionItemPlaylist | S
             })?.value
             const image_url = section.images.items[0]?.sources[0]?.url
             if (image_url === undefined) {
-                throw new ScriptException("missing playlist thumbnail")
+                throw new ScriptException(`missing playlist thumbnail for: ${section.uri}`)
             }
             let author = section_as_author
             // TODO we might want to look up the username of the playlist if it is missing instead of using the section/page/genre as the channel
@@ -2847,6 +2852,11 @@ function getUserPlaylists() {
             ...playlists,
             ...library_response.data.me.libraryV3.items.flatMap(function (library_item) {
                 const item = library_item.item.data
+
+                // to avoid the never type
+                const type = item.__typename
+                const uri = item.uri
+
                 switch (item.__typename) {
                     case "Album":
                         return `${ALBUM_URL_PREFIX}${id_from_uri(item.uri)}`
@@ -2863,7 +2873,7 @@ function getUserPlaylists() {
                     case "Folder":
                         return []
                     default:
-                        throw assert_exhaustive(item, `unknown item type: item.__typename`)
+                        throw assert_exhaustive(item, `unknown item type: ${type} uri: ${uri}`)
                 }
             })
         ]
@@ -2962,6 +2972,11 @@ function getUserSubscriptions(): string[] {
             ...following,
             ...library_response.data.me.libraryV3.items.flatMap(function (library_item) {
                 const item = library_item.item.data
+
+                // to avoid the never type
+                const type = item.__typename
+                const uri = item.uri
+
                 switch (item.__typename) {
                     case "Album":
                         return []
@@ -2978,7 +2993,7 @@ function getUserSubscriptions(): string[] {
                     case "Folder":
                         return []
                     default:
-                        throw assert_exhaustive(item, "unreachable")
+                        throw assert_exhaustive(item, `unknown item type: ${type} uri: ${uri}`)
                 }
             })
         ]
@@ -3511,7 +3526,7 @@ function assert_exhaustive(value: never, exception_message: string): ScriptExcep
 function assert_exhaustive(value: never, exception_message?: string): ScriptException | undefined {
     log(["Spotify log:", value])
     if (exception_message !== undefined) {
-        return new ScriptException(exception_message)
+        return new ScriptException(exception_message )
     }
     return
 }
