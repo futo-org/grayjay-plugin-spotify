@@ -2442,7 +2442,6 @@ function getUserPlaylists() {
                 const item = library_item.item.data;
                 // to avoid the never type
                 const type = item.__typename;
-                const uri = item.uri;
                 switch (item.__typename) {
                     case "Album":
                         return `${ALBUM_URL_PREFIX}${id_from_uri(item.uri)}`;
@@ -2458,8 +2457,10 @@ function getUserPlaylists() {
                         return [];
                     case "Folder":
                         return [];
+                    case "NotFound":
+                        return [];
                     default:
-                        throw assert_exhaustive(item, `unknown item type: ${type} uri: ${uri}`);
+                        throw assert_exhaustive(item, `unknown item type: ${type}`);
                 }
             })
         ];
@@ -2559,7 +2560,6 @@ function getUserSubscriptions() {
                 const item = library_item.item.data;
                 // to avoid the never type
                 const type = item.__typename;
-                const uri = item.uri;
                 switch (item.__typename) {
                     case "Album":
                         return [];
@@ -2575,8 +2575,10 @@ function getUserSubscriptions() {
                         return `${ARTIST_URL_PREFIX}${id_from_uri(item.uri)}`;
                     case "Folder":
                         return [];
+                    case "NotFound":
+                        return [];
                     default:
-                        throw assert_exhaustive(item, `unknown item type: ${type} uri: ${uri}`);
+                        throw assert_exhaustive(item, `unknown item type: ${type}`);
                 }
             })
         ];

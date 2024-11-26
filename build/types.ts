@@ -135,7 +135,14 @@ export type LibraryResponse = {
                 readonly totalCount: number
                 readonly items: {
                     readonly item: {
-                        readonly data: SectionItemFolder | SectionItemPodcast | SectionItemPlaylist | SectionItemAlbum | SectionItemArtist | SectionItemAudiobook | SectionItemPseudoPlaylist
+                        readonly data: SectionItemFolder
+                        | SectionItemPodcast
+                        | SectionItemPlaylist
+                        | SectionItemAlbum
+                        | SectionItemArtist
+                        | SectionItemAudiobook
+                        | SectionItemPseudoPlaylist
+                        | SectionItemNotFound
                     }
                 }[]
             }

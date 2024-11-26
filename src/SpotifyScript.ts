@@ -2855,7 +2855,6 @@ function getUserPlaylists() {
 
                 // to avoid the never type
                 const type = item.__typename
-                const uri = item.uri
 
                 switch (item.__typename) {
                     case "Album":
@@ -2872,8 +2871,10 @@ function getUserPlaylists() {
                         return []
                     case "Folder":
                         return []
+                    case "NotFound":
+                        return []
                     default:
-                        throw assert_exhaustive(item, `unknown item type: ${type} uri: ${uri}`)
+                        throw assert_exhaustive(item, `unknown item type: ${type}`)
                 }
             })
         ]
@@ -2975,7 +2976,6 @@ function getUserSubscriptions(): string[] {
 
                 // to avoid the never type
                 const type = item.__typename
-                const uri = item.uri
 
                 switch (item.__typename) {
                     case "Album":
@@ -2992,8 +2992,10 @@ function getUserSubscriptions(): string[] {
                         return `${ARTIST_URL_PREFIX}${id_from_uri(item.uri)}`
                     case "Folder":
                         return []
+                    case "NotFound":
+                        return []
                     default:
-                        throw assert_exhaustive(item, `unknown item type: ${type} uri: ${uri}`)
+                        throw assert_exhaustive(item, `unknown item type: ${type}`)
                 }
             })
         ]
