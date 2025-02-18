@@ -917,7 +917,34 @@ export type PlaylistContent = {
             readonly isoString: string
         }
         readonly itemV2: {
-            readonly __typename: "TrackResponseWrapper",
+            readonly __typename: "EpisodeOrChapterResponseWrapper"
+            readonly data: {
+                readonly __typename: "Episode"
+                readonly coverArt: {
+                    readonly sources: ImageSources
+                }
+                readonly episodeDuration: {
+                    totalMilliseconds: number
+                }
+                readonly name: string
+                readonly uri: string
+                readonly podcastV2: {
+                    readonly data: {
+                        readonly coverArt: {
+                            readonly sources: ImageSources
+                        }
+                        readonly name: string
+                        readonly uri: string
+                    }
+                }
+                readonly releaseDate: {
+                    readonly isoString: string
+                }
+            } | {
+                readonly __typename: "RestrictedContent"
+            }
+        } | {
+            readonly __typename: "TrackResponseWrapper"
             readonly data: {
                 readonly playcount: string
                 readonly trackDuration: {
@@ -938,7 +965,7 @@ export type PlaylistContent = {
                 }
             }
         } | {
-            readonly __typename: "LocalTrackResponseWrapper",
+            readonly __typename: "LocalTrackResponseWrapper"
         }
     }[]
 }

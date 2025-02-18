@@ -1386,7 +1386,7 @@ class SpotifyPlaylistPager extends VideoPager {
     ) {
         const total_tracks = playlist_response.data.playlistV2.content.totalCount
 
-        const songs = format_playlist_tracks(playlist_response.data.playlistV2.content)
+        const songs = format_playlist_items(playlist_response.data.playlistV2.content)
 
         super(songs, total_tracks > offset + pagination_limit)
         this.offset = offset + pagination_limit
@@ -1396,7 +1396,7 @@ class SpotifyPlaylistPager extends VideoPager {
         const { url, headers } = fetch_playlist_contents_args(this.playlist_uri_id, this.offset, this.pagination_limit)
         const playlist_content_response: PlaylistContentResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
 
-        const songs = format_playlist_tracks(playlist_content_response.data.playlistV2.content)
+        const songs = format_playlist_items(playlist_content_response.data.playlistV2.content)
         this.results = songs
         this.hasMore = this.total_tracks > this.offset + this.pagination_limit
         this.offset += this.pagination_limit
@@ -1406,37 +1406,72 @@ class SpotifyPlaylistPager extends VideoPager {
         return this.hasMore
     }
 }
-function format_playlist_tracks(content: PlaylistContent) {
+function format_playlist_items(content: PlaylistContent) {
     return content.items.flatMap(function (playlist_track_metadata) {
-        if (playlist_track_metadata.itemV2.__typename === "LocalTrackResponseWrapper") {
-            return []
+        const item = playlist_track_metadata.itemV2
+        switch (item.__typename) {
+            case "EpisodeOrChapterResponseWrapper": {
+                const episode = item.data
+                log(episode)
+                if (episode.__typename === "RestrictedContent") {
+                    return []
+                }
+                const episode_uri_id = id_from_uri(episode.uri)
+                const podcast = episode.podcastV2
+                const url = `${EPISODE_URL_PREFIX}${episode_uri_id}`
+                return new PlatformVideo({
+                    id: new PlatformID(PLATFORM, episode_uri_id, plugin.config.id),
+                    name: episode.name,
+                    author: new PlatformAuthorLink(
+                        new PlatformID(PLATFORM, id_from_uri(podcast.data.uri), plugin.config.id),
+                        podcast.data.name,
+                        `${ARTIST_URL_PREFIX}${id_from_uri(podcast.data.uri)}`,
+                        podcast.data.coverArt.sources[0]?.url
+                    ),
+                    url,
+                    thumbnails: new Thumbnails(episode.coverArt.sources.map(function (source) {
+                        return new Thumbnail(source.url, source.height)
+                    })),
+                    duration: episode.episodeDuration.totalMilliseconds / 1000,
+                    viewCount: 0, // parseInt(episode.playcount),
+                    isLive: false,
+                    shareUrl: url,
+                    datetime: new Date(episode.releaseDate.isoString).getTime() / 1000
+                })
+            }
+            case "LocalTrackResponseWrapper":
+                return []
+            case "TrackResponseWrapper": {
+                const song = item.data
+                const track_uri_id = id_from_uri(song.uri)
+                const artist = song.artists.items[0]
+                if (artist === undefined) {
+                    throw new ScriptException("missing artist")
+                }
+                const url = `${SONG_URL_PREFIX}${track_uri_id}`
+                return new PlatformVideo({
+                    id: new PlatformID(PLATFORM, track_uri_id, plugin.config.id),
+                    name: song.name,
+                    author: new PlatformAuthorLink(
+                        new PlatformID(PLATFORM, id_from_uri(artist.uri), plugin.config.id),
+                        artist.profile.name,
+                        `${ARTIST_URL_PREFIX}${id_from_uri(artist.uri)}`
+                        // TODO figure out a way to get the artist thumbnail
+                    ),
+                    url,
+                    thumbnails: new Thumbnails(song.albumOfTrack.coverArt.sources.map(function (source) {
+                        return new Thumbnail(source.url, source.height)
+                    })),
+                    duration: song.trackDuration.totalMilliseconds / 1000,
+                    viewCount: parseInt(song.playcount),
+                    isLive: false,
+                    shareUrl: url,
+                    datetime: new Date(playlist_track_metadata.addedAt.isoString).getTime() / 1000
+                })
+            }
+            default:
+                throw assert_exhaustive(item, `Unknown playlist item type ${(item as { readonly __typename: string }).__typename}`)
         }
-        const song = playlist_track_metadata.itemV2.data
-        const track_uri_id = id_from_uri(song.uri)
-        const artist = song.artists.items[0]
-        if (artist === undefined) {
-            throw new ScriptException("missing artist")
-        }
-        const url = `${SONG_URL_PREFIX}${track_uri_id}`
-        return new PlatformVideo({
-            id: new PlatformID(PLATFORM, track_uri_id, plugin.config.id),
-            name: song.name,
-            author: new PlatformAuthorLink(
-                new PlatformID(PLATFORM, id_from_uri(artist.uri), plugin.config.id),
-                artist.profile.name,
-                `${ARTIST_URL_PREFIX}${id_from_uri(artist.uri)}`
-                // TODO figure out a way to get the artist thumbnail
-            ),
-            url,
-            thumbnails: new Thumbnails(song.albumOfTrack.coverArt.sources.map(function (source) {
-                return new Thumbnail(source.url, source.height)
-            })),
-            duration: song.trackDuration.totalMilliseconds / 1000,
-            viewCount: parseInt(song.playcount),
-            isLive: false,
-            shareUrl: url,
-            datetime: new Date(playlist_track_metadata.addedAt.isoString).getTime() / 1000
-        })
     })
 }
 /**
