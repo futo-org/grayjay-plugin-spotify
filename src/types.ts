@@ -143,6 +143,7 @@ export type LibraryResponse = {
                         | SectionItemAudiobook
                         | SectionItemPseudoPlaylist
                         | SectionItemNotFound
+                        | SectionItemRestrictedContent
                     }
                 }[]
             }
@@ -346,6 +347,9 @@ export type SectionItemPlaylist = {
 }
 export type SectionItemNotFound = {
     readonly __typename: "NotFound"
+}
+export type SectionItemRestrictedContent = {
+    readonly __typename: "RestrictedContent"
 }
 export type SectionItemAlbum = {
     readonly name: string

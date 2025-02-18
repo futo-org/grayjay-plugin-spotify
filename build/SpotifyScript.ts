@@ -1409,10 +1409,10 @@ class SpotifyPlaylistPager extends VideoPager {
 function format_playlist_items(content: PlaylistContent) {
     return content.items.flatMap(function (playlist_track_metadata) {
         const item = playlist_track_metadata.itemV2
+        const type = item.__typename
         switch (item.__typename) {
             case "EpisodeOrChapterResponseWrapper": {
                 const episode = item.data
-                log(episode)
                 if (episode.__typename === "RestrictedContent") {
                     return []
                 }
@@ -1470,7 +1470,7 @@ function format_playlist_items(content: PlaylistContent) {
                 })
             }
             default:
-                throw assert_exhaustive(item, `Unknown playlist item type ${(item as { readonly __typename: string }).__typename}`)
+                throw assert_exhaustive(item, `Unknown playlist item type ${type}`)
         }
     })
 }
@@ -2932,6 +2932,8 @@ function getUserPlaylists() {
                         return []
                     case "NotFound":
                         return []
+                    case "RestrictedContent":
+                        return []
                     default:
                         throw assert_exhaustive(item, `unknown item type: ${type}`)
                 }
@@ -3052,6 +3054,8 @@ function getUserSubscriptions(): string[] {
                     case "Folder":
                         return []
                     case "NotFound":
+                        return []
+                    case "RestrictedContent":
                         return []
                     default:
                         throw assert_exhaustive(item, `unknown item type: ${type}`)
