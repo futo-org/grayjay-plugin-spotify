@@ -1068,7 +1068,10 @@ class SpotifyPlaylistsPager extends PlaylistPager {
 }
 function format_playlist_results(search_response: SearchResponse) {
     return [
-        ...search_response.data.searchV2.albumsV2.items.map(function (album) {
+        ...search_response.data.searchV2.albumsV2.items.flatMap(function (album) {
+            if (album.data.__typename === "PreRelease") {
+                return []
+            }
             const album_artist = album.data.artists.items[0]
             if (album_artist === undefined) {
                 throw new ScriptException("missing album artist")
@@ -1087,7 +1090,10 @@ function format_playlist_results(search_response: SearchResponse) {
                 thumbnail: album.data.coverArt.sources[0]?.url ?? HARDCODED_EMPTY_STRING
             })
         }),
-        ...search_response.data.searchV2.playlists.items.map(function (playlist) {
+        ...search_response.data.searchV2.playlists.items.flatMap(function (playlist) {
+            if (playlist.data.__typename === "NotFound") {
+                return []
+            }
             const created_iso = playlist.data.attributes.find(function (attribute) {
                 return attribute.key === "created"
             })?.value

@@ -192,7 +192,7 @@ export type SearchResponse = {
         readonly searchV2: {
             readonly albumsV2: {
                 readonly items: {
-                    readonly data: SectionItemAlbum
+                    readonly data: SectionItemAlbum | SectionItemPreRelease
 
                 }[]
                 readonly totalCount: number
@@ -227,7 +227,7 @@ export type SearchResponse = {
             }
             readonly playlists: {
                 readonly items: {
-                    readonly data: SectionItemPlaylist
+                    readonly data: SectionItemPlaylist | SectionItemNotFound
 
                 }[]
                 readonly totalCount: number
@@ -350,6 +350,9 @@ export type SectionItemNotFound = {
 }
 export type SectionItemRestrictedContent = {
     readonly __typename: "RestrictedContent"
+}
+export type SectionItemPreRelease = {
+    readonly __typename: "PreRelease"
 }
 export type SectionItemAlbum = {
     readonly name: string
