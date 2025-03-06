@@ -2517,6 +2517,8 @@ function getUserPlaylists() {
                         return [];
                     case "RestrictedContent":
                         return [];
+                    case "PreRelease":
+                        return [];
                     default:
                         throw assert_exhaustive(item, `unknown item type: ${type}`);
                 }
@@ -2636,6 +2638,8 @@ function getUserSubscriptions() {
                     case "NotFound":
                         return [];
                     case "RestrictedContent":
+                        return [];
+                    case "PreRelease":
                         return [];
                     default:
                         throw assert_exhaustive(item, `unknown item type: ${type}`);

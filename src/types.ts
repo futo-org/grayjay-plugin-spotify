@@ -144,6 +144,7 @@ export type LibraryResponse = {
                         | SectionItemPseudoPlaylist
                         | SectionItemNotFound
                         | SectionItemRestrictedContent
+                        | SectionItemPreRelease
                     }
                 }[]
             }
