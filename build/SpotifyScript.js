@@ -13,6 +13,7 @@ const PLAYLIST_URL_PREFIX = "https://open.spotify.com/playlist/";
 const COLLECTION_URL_PREFIX = "https://open.spotify.com/collection/";
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query";
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/";
+const ACCESS_TOKEN_URL = "https://open.spotify.com/get_access_token";
 const PLATFORM = "Spotify";
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0";
 const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop";
@@ -84,20 +85,28 @@ function enable(conf, settings, savedState) {
     }
     else {
         const home_page = "https://open.spotify.com";
-        const token_regex = /<script id="config" data-testid="config" type="application\/json">({.*?})<\/script><script id="session" data-testid="session" type="application\/json">({.*?})<\/script>/;
+        const premium_regex = /<script id="config" data-testid="config" type="application\/json">({.*?})<\/script>/;
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/;
         // use the authenticated client to get a logged in bearer token
-        const html = throw_if_not_ok(local_http.GET(home_page, { "User-Agent": USER_AGENT }, true)).body;
-        const web_player_js_match_result = html.match(web_player_js_regex);
+        const response = local_http.batch()
+            .GET(home_page, { "User-Agent": USER_AGENT }, true)
+            .GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player`, { "User-Agent": USER_AGENT }, true)
+            .execute();
+        if (response[0] === undefined || response[1] === undefined) {
+            throw new ScriptException("unreachable");
+        }
+        const home_response = response[0];
+        const access_token_response = response[1].body;
+        const web_player_js_match_result = home_response.body.match(web_player_js_regex);
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
             throw new ScriptException("regex error");
         }
-        const token_match_result = html.match(token_regex);
-        if (token_match_result === null || token_match_result[1] === undefined || token_match_result[2] === undefined) {
+        const premium_match_result = home_response.body.match(premium_regex);
+        if (premium_match_result === null || premium_match_result[1] === undefined) {
             throw new ScriptException("regex error");
         }
-        const user_data = JSON.parse(token_match_result[1]);
-        const token_response = JSON.parse(token_match_result[2]);
+        const user_data = JSON.parse(premium_match_result[1]);
+        const token_response = JSON.parse(access_token_response);
         const bearer_token = token_response.accessToken;
         // download license uri and get logged in user
         const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0";
@@ -143,9 +152,8 @@ function enable(conf, settings, savedState) {
     }
 }
 function download_bearer_token() {
-    const get_access_token_url = "https://open.spotify.com/get_access_token?reason=transport&productType=web-player";
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_ok(local_http.GET(get_access_token_url, {}, true)).body;
+    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player`, {}, true)).body;
     const token_response = JSON.parse(access_token_response);
     return token_response;
 }
