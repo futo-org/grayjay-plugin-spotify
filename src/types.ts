@@ -28,6 +28,8 @@ export type State = {
     readonly is_premium: boolean
     readonly username?: string
     readonly country?: string
+    readonly totp_init: number[]
+    readonly server_time: number
 }
 export type ChannelTypeCapabilities = typeof Type.Feed.Playlists | typeof Type.Feed.Albums | typeof Type.Feed.Videos
 export type SearchTypes = typeof Type.Feed.Videos

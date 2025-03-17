@@ -157,17 +157,8 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/
 
         // use the authenticated client to get a logged in bearer token
-        const response = local_http.batch()
+        const home_response = local_http
             .GET(home_page, { "User-Agent": USER_AGENT }, true)
-            .GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player`, { "User-Agent": USER_AGENT }, true)
-            .execute()
-
-        if (response[0] === undefined || response[1] === undefined) {
-            throw new ScriptException("unreachable")
-        }
-
-        const home_response = response[0]
-        const access_token_response = response[1].body
 
         const web_player_js_match_result = home_response.body.match(web_player_js_regex)
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
@@ -182,7 +173,39 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const user_data: {
             readonly isPremium: boolean
             readonly userCountry: string
+            readonly serverTime: number
         } = JSON.parse(premium_match_result[1])
+
+        // download license uri and get logged in user
+        const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0"
+        const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D"
+        const web_player_js_url = web_player_js_match_result[0]
+
+        const web_player_js_contents = local_http.GET(
+            web_player_js_url,
+            {},
+            false
+        ).body
+
+        const totp_init_match_result = web_player_js_contents.match(/\[([0-9]{2},){16}[0-9]{2}\]/)
+        if (totp_init_match_result === null) {
+            throw new ScriptException("unable to find totp init key")
+        }
+        const totp_init_string = totp_init_match_result[0]
+        if (totp_init_string === undefined) {
+            throw new ScriptException("regex error")
+        }
+        const totp_init: number[] = JSON.parse(totp_init_string)
+
+        const c_time = Date.now()
+        const totp = generate_totp(c_time, new Uint8Array(totp_init))
+        const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
+
+        const access_token_response = local_http.GET(
+            `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
+            { "User-Agent": USER_AGENT },
+            true
+        ).body
 
         const token_response: {
             readonly accessToken: string,
@@ -191,10 +214,6 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
 
         const bearer_token = token_response.accessToken
 
-        // download license uri and get logged in user
-        const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0"
-        const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D"
-        const web_player_js_url = web_player_js_match_result[0]
         const responses = local_http
             .batch()
             .GET(
@@ -207,13 +226,8 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
                 { Authorization: `Bearer ${bearer_token}` },
                 false
             )
-            .GET(
-                web_player_js_url,
-                { Authorization: `Bearer ${bearer_token}` },
-                false
-            )
             .execute()
-        if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
+        if (responses[0] === undefined || responses[1] === undefined) {
             throw new ScriptException("unreachable")
         }
 
@@ -225,7 +239,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const profile_attributes_response: ProfileAttributesResponse = JSON.parse(
             throw_if_not_ok(responses[1]).body
         )
-        const feature_version_match_result = throw_if_not_ok(responses[2]).body.match(/"(web-player_(.*?))"/)
+        const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/)
         if (feature_version_match_result === null) {
             throw new ScriptException("regex error")
         }
@@ -233,13 +247,17 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         if (feature_version === undefined) {
             throw new ScriptException("regex error")
         }
+
         let state: State = {
             feature_version,
             bearer_token,
             expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
             license_uri: license_uri,
-            is_premium: user_data.isPremium
+            is_premium: user_data.isPremium,
+            totp_init,
+            server_time: user_data.serverTime
         }
+
         if (profile_attributes_response.data.me !== null) {
             state = {
                 ...state,
@@ -252,14 +270,56 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         local_state = state
     }
 }
+function generate_totp(ts: number, totp_init: Uint8Array) {
+    // constants from web-player.*.js
+    const digits = 6
+    const period = 30
+    const counter = Math.floor(ts / 1e3 / period)
+
+    // spotify code from web-player.*.js
+
+    const temp = totp_init.map(((e, t) => e ^ t % 33 + 9))
+    // @ts-expect-error TODO type TextEncoder
+    const key = (new TextEncoder()).encode(temp.join(""))
+
+    const value = (e => {
+        const n = new Uint8Array(8)
+        let r = e
+        for (let i = 7; i >= 0 && 0 !== r; i--) {
+            n[i] = 255 & r
+            // @ts-expect-error spotify code
+            r -= n[i]
+            r /= 256
+        }
+        return n
+    }
+    )(counter)
+
+    const shaObj = new jsSHA("SHA-1", "UINT8ARRAY", {
+        hmacKey: { value: key, format: "UINT8ARRAY" },
+    })
+    shaObj.update(value)
+    // @ts-expect-error TODO type sha1
+    const hmac = shaObj.getHash("UINT8ARRAY") as Uint8Array
+
+    // @ts-expect-error spotify code
+    const o = 15 & hmac[hmac.byteLength - 1]
+    // @ts-expect-error spotify code
+    return (((127 & hmac[o]) << 24 | (255 & hmac[o + 1]) << 16 | (255 & hmac[o + 2]) << 8 | 255 & hmac[o + 3]) % 10 ** digits).toString().padStart(digits, "0")
+}
 function download_bearer_token() {
+    const c_time = Date.now()
+    const totp = generate_totp(c_time, new Uint8Array(local_state.totp_init))
+    const server_totp = generate_totp(local_state.server_time, new Uint8Array(local_state.totp_init))
+
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player`, {}, true)).body
+    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${local_state.server_time}&cTime=${c_time}`, {}, true)).body
 
     const token_response: {
         readonly accessToken: string,
         readonly accessTokenExpirationTimestampMs: number
     } = JSON.parse(access_token_response)
+
     return token_response
 }
 function check_and_update_token() {
@@ -274,7 +334,9 @@ function check_and_update_token() {
         bearer_token: token_response.accessToken,
         expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
         license_uri: local_state.license_uri,
-        is_premium: local_state.is_premium
+        is_premium: local_state.is_premium,
+        totp_init: local_state.totp_init,
+        server_time: local_state.server_time
     }
     if (local_state.username !== undefined) {
         state = { ...state, username: local_state.username }
@@ -3614,6 +3676,65 @@ function assert_exhaustive(value: never, exception_message?: string): ScriptExce
         return new ScriptException(exception_message)
     }
     return
+}
+//#endregion
+
+//#region external utilities
+/**
+ * A JavaScript implementation of the SHA family of hashes - defined in FIPS PUB 180-4, FIPS PUB 202,
+ * and SP 800-185 - as well as the corresponding HMAC implementation as defined in FIPS PUB 198-1.
+ *
+ * Copyright 2008-2023 Brian Turek, 1998-2009 Paul Johnston & Contributors
+ * Distributed under the BSD License
+ * See http://caligatio.github.com/jsSHA/ for more information
+ */
+// @ts-expect-error external library
+// eslint-disable-next-line
+const t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", r = "ARRAYBUFFER not supported by this environment", n = "UINT8ARRAY not supported by this environment"; function i(t, r, n, i) { let e, s, o; const h = r || [0], u = (n = n || 0) >>> 3, f = -1 === i ? 3 : 0; for (e = 0; e < t.length; e += 1)o = e + u, s = o >>> 2, h.length <= s && h.push(0), h[s] |= t[e] << 8 * (f + i * (o % 4)); return { value: h, binLen: 8 * t.length + n } } function e(e, s, o) { switch (s) { case "UTF8": case "UTF16BE": case "UTF16LE": break; default: throw new Error("encoding must be UTF8, UTF16BE, or UTF16LE") }switch (e) { case "HEX": return function (t, r, n) { return function (t, r, n, i) { let e, s, o, h; if (0 != t.length % 2) throw new Error("String of HEX type must be in byte increments"); const u = r || [0], f = (n = n || 0) >>> 3, c = -1 === i ? 3 : 0; for (e = 0; e < t.length; e += 2) { if (s = parseInt(t.substr(e, 2), 16), isNaN(s)) throw new Error("String of HEX type contains invalid characters"); for (h = (e >>> 1) + f, o = h >>> 2; u.length <= o;)u.push(0); u[o] |= s << 8 * (c + i * (h % 4)) } return { value: u, binLen: 4 * t.length + n } }(t, r, n, o) }; case "TEXT": return function (t, r, n) { return function (t, r, n, i, e) { let s, o, h, u, f, c, a, w, E = 0; const l = n || [0], A = (i = i || 0) >>> 3; if ("UTF8" === r) for (a = -1 === e ? 3 : 0, h = 0; h < t.length; h += 1)for (s = t.charCodeAt(h), o = [], 128 > s ? o.push(s) : 2048 > s ? (o.push(192 | s >>> 6), o.push(128 | 63 & s)) : 55296 > s || 57344 <= s ? o.push(224 | s >>> 12, 128 | s >>> 6 & 63, 128 | 63 & s) : (h += 1, s = 65536 + ((1023 & s) << 10 | 1023 & t.charCodeAt(h)), o.push(240 | s >>> 18, 128 | s >>> 12 & 63, 128 | s >>> 6 & 63, 128 | 63 & s)), u = 0; u < o.length; u += 1) { for (c = E + A, f = c >>> 2; l.length <= f;)l.push(0); l[f] |= o[u] << 8 * (a + e * (c % 4)), E += 1 } else for (a = -1 === e ? 2 : 0, w = "UTF16LE" === r && 1 !== e || "UTF16LE" !== r && 1 === e, h = 0; h < t.length; h += 1) { for (s = t.charCodeAt(h), !0 === w && (u = 255 & s, s = u << 8 | s >>> 8), c = E + A, f = c >>> 2; l.length <= f;)l.push(0); l[f] |= s << 8 * (a + e * (c % 4)), E += 2 } return { value: l, binLen: 8 * E + i } }(t, s, r, n, o) }; case "B64": return function (r, n, i) { return function (r, n, i, e) { let s, o, h, u, f, c, a, w = 0; const E = n || [0], l = (i = i || 0) >>> 3, A = -1 === e ? 3 : 0, p = r.indexOf("="); if (-1 === r.search(/^[a-zA-Z0-9=+/]+$/)) throw new Error("Invalid character in base-64 string"); if (r = r.replace(/=/g, ""), -1 !== p && p < r.length) throw new Error("Invalid '=' found in base-64 string"); for (o = 0; o < r.length; o += 4) { for (f = r.substr(o, 4), u = 0, h = 0; h < f.length; h += 1)s = t.indexOf(f.charAt(h)), u |= s << 18 - 6 * h; for (h = 0; h < f.length - 1; h += 1) { for (a = w + l, c = a >>> 2; E.length <= c;)E.push(0); E[c] |= (u >>> 16 - 8 * h & 255) << 8 * (A + e * (a % 4)), w += 1 } } return { value: E, binLen: 8 * w + i } }(r, n, i, o) }; case "BYTES": return function (t, r, n) { return function (t, r, n, i) { let e, s, o, h; const u = r || [0], f = (n = n || 0) >>> 3, c = -1 === i ? 3 : 0; for (s = 0; s < t.length; s += 1)e = t.charCodeAt(s), h = s + f, o = h >>> 2, u.length <= o && u.push(0), u[o] |= e << 8 * (c + i * (h % 4)); return { value: u, binLen: 8 * t.length + n } }(t, r, n, o) }; case "ARRAYBUFFER": try { new ArrayBuffer(0) } catch (t) { throw new Error(r) } return function (t, r, n) { return function (t, r, n, e) { return i(new Uint8Array(t), r, n, e) }(t, r, n, o) }; case "UINT8ARRAY": try { new Uint8Array(0) } catch (t) { throw new Error(n) } return function (t, r, n) { return i(t, r, n, o) }; default: throw new Error("format must be HEX, TEXT, B64, BYTES, ARRAYBUFFER, or UINT8ARRAY") } } function s(i, e, s, o) { switch (i) { case "HEX": return function (t) { return function (t, r, n, i) { const e = "0123456789abcdef"; let s, o, h = ""; const u = r / 8, f = -1 === n ? 3 : 0; for (s = 0; s < u; s += 1)o = t[s >>> 2] >>> 8 * (f + n * (s % 4)), h += e.charAt(o >>> 4 & 15) + e.charAt(15 & o); return i.outputUpper ? h.toUpperCase() : h }(t, e, s, o) }; case "B64": return function (r) { return function (r, n, i, e) { let s, o, h, u, f, c = ""; const a = n / 8, w = -1 === i ? 3 : 0; for (s = 0; s < a; s += 3)for (u = s + 1 < a ? r[s + 1 >>> 2] : 0, f = s + 2 < a ? r[s + 2 >>> 2] : 0, h = (r[s >>> 2] >>> 8 * (w + i * (s % 4)) & 255) << 16 | (u >>> 8 * (w + i * ((s + 1) % 4)) & 255) << 8 | f >>> 8 * (w + i * ((s + 2) % 4)) & 255, o = 0; o < 4; o += 1)c += 8 * s + 6 * o <= n ? t.charAt(h >>> 6 * (3 - o) & 63) : e.b64Pad; return c }(r, e, s, o) }; case "BYTES": return function (t) { return function (t, r, n) { let i, e, s = ""; const o = r / 8, h = -1 === n ? 3 : 0; for (i = 0; i < o; i += 1)e = t[i >>> 2] >>> 8 * (h + n * (i % 4)) & 255, s += String.fromCharCode(e); return s }(t, e, s) }; case "ARRAYBUFFER": try { new ArrayBuffer(0) } catch (t) { throw new Error(r) } return function (t) { return function (t, r, n) { let i; const e = r / 8, s = new ArrayBuffer(e), o = new Uint8Array(s), h = -1 === n ? 3 : 0; for (i = 0; i < e; i += 1)o[i] = t[i >>> 2] >>> 8 * (h + n * (i % 4)) & 255; return s }(t, e, s) }; case "UINT8ARRAY": try { new Uint8Array(0) } catch (t) { throw new Error(n) } return function (t) { return function (t, r, n) { let i; const e = r / 8, s = -1 === n ? 3 : 0, o = new Uint8Array(e); for (i = 0; i < e; i += 1)o[i] = t[i >>> 2] >>> 8 * (s + n * (i % 4)) & 255; return o }(t, e, s) }; default: throw new Error("format must be HEX, B64, BYTES, ARRAYBUFFER, or UINT8ARRAY") } } function o(t) { const r = { outputUpper: !1, b64Pad: "=", outputLen: -1 }, n = t || {}, i = "Output length must be a multiple of 8"; if (r.outputUpper = n.outputUpper || !1, n.b64Pad && (r.b64Pad = n.b64Pad), n.outputLen) { if (n.outputLen % 8 != 0) throw new Error(i); r.outputLen = n.outputLen } else if (n.shakeLen) { if (n.shakeLen % 8 != 0) throw new Error(i); r.outputLen = n.shakeLen } if ("boolean" != typeof r.outputUpper) throw new Error("Invalid outputUpper formatting option"); if ("string" != typeof r.b64Pad) throw new Error("Invalid b64Pad formatting option"); return r } class h { constructor(t, r, n) { const i = n || {}; if (this.t = r, this.i = i.encoding || "UTF8", this.numRounds = i.numRounds || 1, isNaN(this.numRounds) || this.numRounds !== parseInt(this.numRounds, 10) || 1 > this.numRounds) throw new Error("numRounds must a integer >= 1"); this.o = t, this.h = [], this.u = 0, this.l = !1, this.A = 0, this.p = !1, this.U = [], this.R = [] } update(t) { let r, n = 0; const i = this.T >>> 5, e = this.F(t, this.h, this.u), s = e.binLen, o = e.value, h = s >>> 5; for (r = 0; r < h; r += i)n + this.T <= s && (this.m = this.g(o.slice(r, r + i), this.m), n += this.T); return this.A += n, this.h = o.slice(n >>> 5), this.u = s % this.T, this.l = !0, this } getHash(t, r) { let n, i, e = this.B; const h = o(r); if (this.v) { if (-1 === h.outputLen) throw new Error("Output length must be specified in options"); e = h.outputLen } const u = s(t, e, this.H, h); if (this.p && this.C) return u(this.C(h)); for (i = this.Y(this.h.slice(), this.u, this.A, this.I(this.m), e), n = 1; n < this.numRounds; n += 1)this.v && e % 32 != 0 && (i[i.length - 1] &= 16777215 >>> 24 - e % 32), i = this.Y(i, e, 0, this.L(this.o), e); return u(i) } setHMACKey(t, r, n) { if (!this.M) throw new Error("Variant does not support HMAC"); if (this.l) throw new Error("Cannot set MAC key after calling update"); const i = e(r, (n || {}).encoding || "UTF8", this.H); this.N(i(t)) } N(t) { const r = this.T >>> 3, n = r / 4 - 1; let i; if (1 !== this.numRounds) throw new Error("Cannot set numRounds with MAC"); if (this.p) throw new Error("MAC key already set"); for (r < t.binLen / 8 && (t.value = this.Y(t.value, t.binLen, 0, this.L(this.o), this.B)); t.value.length <= n;)t.value.push(0); for (i = 0; i <= n; i += 1)this.U[i] = 909522486 ^ t.value[i], this.R[i] = 1549556828 ^ t.value[i]; this.m = this.g(this.U, this.m), this.A = this.T, this.p = !0 } getHMAC(t, r) { const n = o(r); return s(t, this.B, this.H, n)(this.S()) } S() { let t; if (!this.p) throw new Error("Cannot call getHMAC without first setting MAC key"); const r = this.Y(this.h.slice(), this.u, this.A, this.I(this.m), this.B); return t = this.g(this.R, this.L(this.o)), t = this.Y(r, this.B, this.T, t, this.B), t } } function u(t, r) { return t << r | t >>> 32 - r } function f(t, r, n) { return t ^ r ^ n } function c(t, r, n) { return t & r ^ t & n ^ r & n } function a(t, r) { const n = (65535 & t) + (65535 & r); return (65535 & (t >>> 16) + (r >>> 16) + (n >>> 16)) << 16 | 65535 & n } function w(t, r, n, i, e) { const s = (65535 & t) + (65535 & r) + (65535 & n) + (65535 & i) + (65535 & e); return (65535 & (t >>> 16) + (r >>> 16) + (n >>> 16) + (i >>> 16) + (e >>> 16) + (s >>> 16)) << 16 | 65535 & s } function E(t) { return [1732584193, 4023233417, 2562383102, 271733878, 3285377520] } function l(t, r) { let n, i, e, s, o, h, E; const l = []; for (n = r[0], i = r[1], e = r[2], s = r[3], o = r[4], E = 0; E < 80; E += 1)l[E] = E < 16 ? t[E] : u(l[E - 3] ^ l[E - 8] ^ l[E - 14] ^ l[E - 16], 1), h = E < 20 ? w(u(n, 5), (A = i) & e ^ ~A & s, o, 1518500249, l[E]) : E < 40 ? w(u(n, 5), f(i, e, s), o, 1859775393, l[E]) : E < 60 ? w(u(n, 5), c(i, e, s), o, 2400959708, l[E]) : w(u(n, 5), f(i, e, s), o, 3395469782, l[E]), o = s, s = e, e = u(i, 30), i = n, n = h; var A; return r[0] = a(n, r[0]), r[1] = a(i, r[1]), r[2] = a(e, r[2]), r[3] = a(s, r[3]), r[4] = a(o, r[4]), r } function A(t, r, n, i) { let e; const s = 15 + (r + 65 >>> 9 << 4), o = r + n; for (; t.length <= s;)t.push(0); for (t[r >>> 5] |= 128 << 24 - r % 32, t[s] = 4294967295 & o, t[s - 1] = o / 4294967296 | 0, e = 0; e < t.length; e += 16)i = l(t.slice(e, e + 16), i); return i } class p extends h { constructor(t, r, n) { if ("SHA-1" !== t) throw new Error("Chosen SHA variant is not supported"); super(t, r, n); const i = n || {}; this.M = !0, this.C = this.S, this.H = -1, this.F = e(this.t, this.i, this.H), this.g = l, this.I = function (t) { return t.slice() }, this.L = E, this.Y = A, this.m = [1732584193, 4023233417, 2562383102, 271733878, 3285377520], this.T = 512, this.B = 160, this.v = !1, i.hmacKey && this.N(function (t, r, n, i) { const s = t + " must include a value and format"; if (!r) { if (!i) throw new Error(s); return i } if (void 0 === r.value || !r.format) throw new Error(s); return e(r.format, r.encoding || "UTF8", n)(r.value) }("hmacKey", i.hmacKey, this.H)) } }
+const jsSHA = p
+
+function TextEncoder() {
+}
+
+TextEncoder.prototype.encode = function (string: string) {
+    /* eslint-disable no-var */
+    var octets = [];
+    var length = string.length;
+    var i = 0;
+    while (i < length) {
+        var codePoint = string.codePointAt(i);
+        var c = 0;
+        var bits = 0;
+        /* eslint-enable no-var */
+        // @ts-expect-error external code
+        if (codePoint <= 0x0000007F) {
+            c = 0;
+            bits = 0x00;
+            // @ts-expect-error external code
+        } else if (codePoint <= 0x000007FF) {
+            c = 6;
+            bits = 0xC0;
+            // @ts-expect-error external code
+        } else if (codePoint <= 0x0000FFFF) {
+            c = 12;
+            bits = 0xE0;
+            // @ts-expect-error external code
+        } else if (codePoint <= 0x001FFFFF) {
+            c = 18;
+            bits = 0xF0;
+        }
+        // @ts-expect-error external code
+        octets.push(bits | (codePoint >> c));
+        c -= 6;
+        while (c >= 0) {
+            // @ts-expect-error external code
+            octets.push(0x80 | ((codePoint >> c) & 0x3F));
+            c -= 6;
+        }
+        // @ts-expect-error external code
+        i += codePoint >= 0x10000 ? 2 : 1;
+    }
+    return octets;
 }
 //#endregion
 
