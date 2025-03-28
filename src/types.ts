@@ -27,7 +27,6 @@ export type State = {
     readonly license_uri: string
     readonly is_premium: boolean
     readonly username?: string
-    readonly country?: string
     readonly totp_init: number[]
     readonly server_time: number
 }

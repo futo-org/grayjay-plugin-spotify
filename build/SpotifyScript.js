@@ -85,20 +85,13 @@ function enable(conf, settings, savedState) {
     }
     else {
         const home_page = "https://open.spotify.com";
-        const premium_regex = /<script id="config" data-testid="config" type="application\/json">({.*?})<\/script>/;
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/;
         // use the authenticated client to get a logged in bearer token
-        const home_response = local_http
-            .GET(home_page, { "User-Agent": USER_AGENT }, true);
+        const home_response = local_http.GET(home_page, { "User-Agent": USER_AGENT }, true);
         const web_player_js_match_result = home_response.body.match(web_player_js_regex);
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
             throw new ScriptException("regex error");
         }
-        const premium_match_result = home_response.body.match(premium_regex);
-        if (premium_match_result === null || premium_match_result[1] === undefined) {
-            throw new ScriptException("regex error");
-        }
-        const user_data = JSON.parse(premium_match_result[1]);
         // download license uri and get logged in user
         const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0";
         const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D";
@@ -115,18 +108,28 @@ function enable(conf, settings, savedState) {
         const totp_init = JSON.parse(totp_init_string);
         const c_time = Date.now();
         const totp = generate_totp(c_time, new Uint8Array(totp_init));
-        const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init));
-        const access_token_response = local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`, { "User-Agent": USER_AGENT }, true).body;
+        // const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
+        const server_totp = generate_totp(c_time / 1000, new Uint8Array(totp_init));
+        const access_token_response = local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`, 
+        // `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
+        { "User-Agent": USER_AGENT }, true).body;
         const token_response = JSON.parse(access_token_response);
         const bearer_token = token_response.accessToken;
+        const account_url = new URL(QUERY_URL);
+        account_url.searchParams.set("operationName", "accountAttributes");
+        account_url.searchParams.set("variables", JSON.stringify({}));
+        account_url.searchParams.set("extensions", JSON.stringify({ "persistedQuery": { "version": 1, "sha256Hash": "3d6fa0df06de5a5a02ebbe6dd8d98649fa1d1582908bf6acc6b0a5685e9b9323" } }));
         const responses = local_http
             .batch()
             .GET(get_license_url_url, { Authorization: `Bearer ${bearer_token}` }, false)
             .GET(profile_attributes_url, { Authorization: `Bearer ${bearer_token}` }, false)
+            .GET(account_url.toString(), { Authorization: `Bearer ${bearer_token}` }, false)
             .execute();
-        if (responses[0] === undefined || responses[1] === undefined) {
+        if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
             throw new ScriptException("unreachable");
         }
+        const account_response = responses[2];
+        const user_data = JSON.parse(account_response.body);
         const get_license_response = JSON.parse(throw_if_not_ok(responses[0]).body);
         const license_uri = `https://gue1-spclient.spotify.com/${get_license_response.uri}`;
         const profile_attributes_response = JSON.parse(throw_if_not_ok(responses[1]).body);
@@ -143,18 +146,15 @@ function enable(conf, settings, savedState) {
             bearer_token,
             expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
             license_uri: license_uri,
-            is_premium: user_data.isPremium,
+            is_premium: user_data.data.me.account.product === "PREMIUM",
             totp_init,
-            server_time: user_data.serverTime
+            server_time: c_time / 1000 //user_data.serverTime
         };
         if (profile_attributes_response.data.me !== null) {
             state = {
                 ...state,
                 username: profile_attributes_response.data.me.profile.username
             };
-        }
-        if ("userCountry" in user_data) {
-            state = { ...state, country: user_data.userCountry };
         }
         local_state = state;
     }
@@ -193,9 +193,11 @@ function generate_totp(ts, totp_init) {
 function download_bearer_token() {
     const c_time = Date.now();
     const totp = generate_totp(c_time, new Uint8Array(local_state.totp_init));
-    const server_totp = generate_totp(local_state.server_time, new Uint8Array(local_state.totp_init));
+    const server_totp = generate_totp(c_time / 1000, new Uint8Array(local_state.totp_init));
+    // const server_totp = generate_totp(local_state.server_time, new Uint8Array(local_state.totp_init))
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${local_state.server_time}&cTime=${c_time}`, {}, true)).body;
+    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`, {}, true)).body;
+    // const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${local_state.server_time}&cTime=${c_time}`, {}, true)).body
     const token_response = JSON.parse(access_token_response);
     return token_response;
 }
@@ -217,9 +219,6 @@ function check_and_update_token() {
     };
     if (local_state.username !== undefined) {
         state = { ...state, username: local_state.username };
-    }
-    if (local_state.country !== undefined) {
-        state = { ...state, country: local_state.country };
     }
     local_state = state;
 }
@@ -495,14 +494,12 @@ function getContentDetails(url) {
             const song_url = `${SONG_URL_PREFIX}${content_uri_id}`;
             const { url: metadata_url, headers: metadata_headers } = song_metadata_args(content_uri_id);
             const { url: track_metadata_url, headers: _track_metadata_headers } = track_metadata_args(content_uri_id);
+            const { url: lyrics_url, headers: lyrics_headers } = lyrics_args(content_uri_id);
             const batch = local_http
                 .batch()
                 .GET(metadata_url, metadata_headers, false)
-                .GET(track_metadata_url, _track_metadata_headers, false);
-            if (local_state.is_premium) {
-                const { url, headers } = lyrics_args(content_uri_id);
-                batch.GET(url, headers, false);
-            }
+                .GET(track_metadata_url, _track_metadata_headers, false)
+                .GET(lyrics_url, lyrics_headers, false);
             const results = batch
                 .execute();
             if (results[0] === undefined || results[1] === undefined) {
