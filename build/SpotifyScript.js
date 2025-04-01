@@ -90,7 +90,7 @@ function enable(conf, settings, savedState) {
         const home_response = local_http.GET(home_page, { "User-Agent": USER_AGENT }, true);
         const web_player_js_match_result = home_response.body.match(web_player_js_regex);
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
-            throw new ScriptException("regex error");
+            throw new ScriptException("unable to find player js file");
         }
         // download license uri and get logged in user
         const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0";
@@ -103,7 +103,7 @@ function enable(conf, settings, savedState) {
         }
         const totp_init_string = totp_init_match_result[0];
         if (totp_init_string === undefined) {
-            throw new ScriptException("regex error");
+            throw new ScriptException("unreachable");
         }
         const totp_init = JSON.parse(totp_init_string);
         const c_time = Date.now();
@@ -135,11 +135,11 @@ function enable(conf, settings, savedState) {
         const profile_attributes_response = JSON.parse(throw_if_not_ok(responses[1]).body);
         const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/);
         if (feature_version_match_result === null) {
-            throw new ScriptException("regex error");
+            throw new ScriptException("unable to find feature version number");
         }
         const feature_version = feature_version_match_result[1];
         if (feature_version === undefined) {
-            throw new ScriptException("regex error");
+            throw new ScriptException("unreachable");
         }
         let state = {
             feature_version,
@@ -2194,7 +2194,7 @@ function format_section_item(section, section_as_author) {
                 }
                 const cover_art_url = section.coverArt.sources[0]?.url;
                 if (cover_art_url === undefined) {
-                    throw new ScriptException("missing album cover art");
+                    throw new ScriptException(`missing album cover art for ${section.uri}`);
                 }
                 return new PlatformPlaylist({
                     id: new PlatformID(PLATFORM, id_from_uri(section.uri), plugin.config.id),
