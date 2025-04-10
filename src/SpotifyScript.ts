@@ -265,7 +265,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             bearer_token,
             expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
             license_uri: license_uri,
-            is_premium: user_data.data.me.account.product === "PREMIUM",
+            is_premium: false,
             totp_init,
             server_time: c_time / 1000//user_data.serverTime
         }
@@ -273,7 +273,8 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         if (profile_attributes_response.data.me !== null) {
             state = {
                 ...state,
-                username: profile_attributes_response.data.me.profile.username
+                username: profile_attributes_response.data.me.profile.username,
+                is_premium: user_data.data.me.account.product === "PREMIUM",
             }
         }
         local_state = state
