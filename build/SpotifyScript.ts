@@ -1258,10 +1258,11 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
             if (!bridge.isLoggedIn()) {
                 throw new LoginRequiredException("login to open playlists")
             }
-            const pagination_limit = 25 as const
-            const offset = 0
+            const pagination_limit = 100 as const
+            const initial_limit = 25 as const
+            const offset = 0 as const
 
-            const { url, headers } = fetch_playlist_args(playlist_uri_id, offset, pagination_limit)
+            const { url, headers } = fetch_playlist_args(playlist_uri_id, offset, initial_limit)
             const playlist_response: PlaylistResponse = JSON.parse(throw_if_not_ok(local_http.GET(url, headers, false)).body)
             const owner = playlist_response.data.playlistV2.ownerV2.data
 
@@ -1281,7 +1282,7 @@ function getPlaylist(url: string): PlatformPlaylistDetails {
                 ),
                 url: `${ALBUM_URL_PREFIX}${playlist_uri_id}`,
                 videoCount: playlist_response.data.playlistV2.content.totalCount,
-                contents: new SpotifyPlaylistPager(playlist_uri_id, offset, pagination_limit, playlist_response)
+                contents: new SpotifyPlaylistPager(playlist_uri_id, offset, initial_limit, pagination_limit, playlist_response)
             }
 
             return new PlatformPlaylistDetails(thumbnail_url === undefined
@@ -1466,6 +1467,7 @@ class SpotifyPlaylistPager extends VideoPager {
     constructor(
         private readonly playlist_uri_id: string,
         offset: number,
+        initial_limit: number,
         private readonly pagination_limit: number,
         playlist_response: PlaylistResponse
     ) {
@@ -1473,8 +1475,8 @@ class SpotifyPlaylistPager extends VideoPager {
 
         const songs = format_playlist_items(playlist_response.data.playlistV2.content)
 
-        super(songs, total_tracks > offset + pagination_limit)
-        this.offset = offset + pagination_limit
+        super(songs, total_tracks > offset + initial_limit)
+        this.offset = offset + initial_limit
         this.total_tracks = total_tracks
     }
     override nextPage(this: SpotifyPlaylistPager): SpotifyPlaylistPager {
@@ -1498,31 +1500,39 @@ function format_playlist_items(content: PlaylistContent) {
         switch (item.__typename) {
             case "EpisodeOrChapterResponseWrapper": {
                 const episode = item.data
-                if (episode.__typename === "RestrictedContent") {
-                    return []
+                const type = episode.__typename
+                switch (episode.__typename) {
+                    case "RestrictedContent":
+                        return []
+                    case "NotFound":
+                        return []
+                    case "Episode": {
+                        const episode_uri_id = id_from_uri(episode.uri)
+                        const podcast = episode.podcastV2
+                        const url = `${EPISODE_URL_PREFIX}${episode_uri_id}`
+                        return new PlatformVideo({
+                            id: new PlatformID(PLATFORM, episode_uri_id, plugin.config.id),
+                            name: episode.name,
+                            author: new PlatformAuthorLink(
+                                new PlatformID(PLATFORM, id_from_uri(podcast.data.uri), plugin.config.id),
+                                podcast.data.name,
+                                `${ARTIST_URL_PREFIX}${id_from_uri(podcast.data.uri)}`,
+                                podcast.data.coverArt.sources[0]?.url
+                            ),
+                            url,
+                            thumbnails: new Thumbnails(episode.coverArt.sources.map(function (source) {
+                                return new Thumbnail(source.url, source.height)
+                            })),
+                            duration: episode.episodeDuration.totalMilliseconds / 1000,
+                            viewCount: 0, // parseInt(episode.playcount),
+                            isLive: false,
+                            shareUrl: url,
+                            datetime: new Date(episode.releaseDate.isoString).getTime() / 1000
+                        })
+                    }
+                    default:
+                        throw assert_exhaustive(episode, `Unknown episode item type ${type}`)
                 }
-                const episode_uri_id = id_from_uri(episode.uri)
-                const podcast = episode.podcastV2
-                const url = `${EPISODE_URL_PREFIX}${episode_uri_id}`
-                return new PlatformVideo({
-                    id: new PlatformID(PLATFORM, episode_uri_id, plugin.config.id),
-                    name: episode.name,
-                    author: new PlatformAuthorLink(
-                        new PlatformID(PLATFORM, id_from_uri(podcast.data.uri), plugin.config.id),
-                        podcast.data.name,
-                        `${ARTIST_URL_PREFIX}${id_from_uri(podcast.data.uri)}`,
-                        podcast.data.coverArt.sources[0]?.url
-                    ),
-                    url,
-                    thumbnails: new Thumbnails(episode.coverArt.sources.map(function (source) {
-                        return new Thumbnail(source.url, source.height)
-                    })),
-                    duration: episode.episodeDuration.totalMilliseconds / 1000,
-                    viewCount: 0, // parseInt(episode.playcount),
-                    isLive: false,
-                    shareUrl: url,
-                    datetime: new Date(episode.releaseDate.isoString).getTime() / 1000
-                })
             }
             case "LocalTrackResponseWrapper":
                 return []

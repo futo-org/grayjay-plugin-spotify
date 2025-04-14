@@ -952,6 +952,9 @@ export type PlaylistContent = {
             } | {
                 readonly __typename: "RestrictedContent"
             }
+            | {
+                readonly __typename: "NotFound"
+            }
         } | {
             readonly __typename: "TrackResponseWrapper"
             readonly data: {
