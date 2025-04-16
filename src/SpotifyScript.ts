@@ -156,8 +156,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const web_player_js_regex = /https:\/\/open\.spotifycdn\.com\/cdn\/build\/web-player\/web-player\..{8}\.js/
 
         // use the authenticated client to get a logged in bearer token
-        const home_response = local_http.GET(home_page, { "User-Agent": USER_AGENT }, true)
-
+        const home_response = throw_if_not_ok(local_http.GET(home_page, { "User-Agent": USER_AGENT }, true))
 
         const web_player_js_match_result = home_response.body.match(web_player_js_regex)
         if (web_player_js_match_result === null || web_player_js_match_result[0] === undefined) {
