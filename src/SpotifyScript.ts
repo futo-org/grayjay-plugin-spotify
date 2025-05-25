@@ -456,8 +456,8 @@ function getHome() {
                             if (artist_collection_regex.test(section_item._uri)) {
                                 return []
                             }
-                            // ignore legacy stations
-                            const station_regex = /^spotify:station:track:/
+                            // ignore legacy stations playlist and track
+                            const station_regex = /^spotify:station:/
                             if (station_regex.test(section_item._uri)) {
                                 return []
                             }
