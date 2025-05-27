@@ -1,4 +1,4 @@
-const CONTENT_REGEX = /^https:\/\/open\.spotify\.com\/(track|episode)\/([a-zA-Z0-9]*)($|\/$|\?.*?)/;
+const CONTENT_REGEX = /^https:\/\/open\.spotify\.com\/(track|episode)\/([a-zA-Z0-9]*)($|\/$|\?.*?$)/;
 const PLAYLIST_REGEX = /^https:\/\/open\.spotify\.com\/(album|playlist|collection)\/([a-zA-Z0-9]*|your-episodes|tracks)($|\/)/;
 const CHANNEL_REGEX = /^https:\/\/open\.spotify\.com\/(show|artist|user|genre|section|content-feed)\/(section|)([a-zA-Z0-9]*|recently-played)($|\/)/;
 const SONG_URL_PREFIX = "https://open.spotify.com/track/";
