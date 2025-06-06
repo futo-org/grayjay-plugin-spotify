@@ -182,7 +182,12 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         if (totp_init_string === undefined) {
             throw new ScriptException("unreachable")
         }
-        const totp_init: number[] = JSON.parse(totp_init_string)
+        const totp_init: number[] = (() => {
+            try { return JSON.parse("$&$%&$%DRHERT"+totp_init_string) }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${totp_init_string} Error: ${e}`)
+            }
+        })()
 
         const c_time = Date.now()
         const totp = generate_totp(c_time, new Uint8Array(totp_init))
@@ -199,7 +204,12 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const token_response: {
             readonly accessToken: string,
             readonly accessTokenExpirationTimestampMs: number
-        } = JSON.parse(access_token_response)
+        } = (() => {
+            try { return JSON.parse(access_token_response) }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${access_token_response} Error: ${e}`)
+            }
+        })()
 
         const bearer_token = token_response.accessToken
 
@@ -240,16 +250,28 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
                     }
                 }
             }
-        } = JSON.parse(account_response.body)
+        } = (() => {
+            try { return JSON.parse(account_response.body) }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${account_response.body} Error: ${e}`)
+            }
+        })()
 
-        const get_license_response: GetLicenseResponse = JSON.parse(
-            throw_if_not_ok(responses[0]).body
-        )
+        const get_license_response: GetLicenseResponse = (() => {
+            try { return JSON.parse(throw_if_not_ok(responses[0]).body) }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[0]).body} Error: ${e}`)
+            }
+        })()
         const license_uri = `https://gue1-spclient.spotify.com/${get_license_response.uri}`
 
-        const profile_attributes_response: ProfileAttributesResponse = JSON.parse(
-            throw_if_not_ok(responses[1]).body
-        )
+        const profile_attributes_response: ProfileAttributesResponse = (() => {
+            try { return JSON.parse(throw_if_not_ok(responses[1]).body) }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[1]).body} Error: ${e}`)
+            }
+        })()
+
         const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/)
         if (feature_version_match_result === null) {
             throw new ScriptException("unable to find feature version number")

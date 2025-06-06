@@ -105,7 +105,14 @@ function enable(conf, settings, savedState) {
         if (totp_init_string === undefined) {
             throw new ScriptException("unreachable");
         }
-        const totp_init = JSON.parse(totp_init_string);
+        const totp_init = (() => {
+            try {
+                return JSON.parse("$&$%&$%DRHERT" + totp_init_string);
+            }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${totp_init_string} Error: ${e}`);
+            }
+        })();
         const c_time = Date.now();
         const totp = generate_totp(c_time, new Uint8Array(totp_init));
         // const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
@@ -113,7 +120,14 @@ function enable(conf, settings, savedState) {
         const access_token_response = local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`, 
         // `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
         { "User-Agent": USER_AGENT }, true).body;
-        const token_response = JSON.parse(access_token_response);
+        const token_response = (() => {
+            try {
+                return JSON.parse(access_token_response);
+            }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${access_token_response} Error: ${e}`);
+            }
+        })();
         const bearer_token = token_response.accessToken;
         const account_url = new URL(QUERY_URL);
         account_url.searchParams.set("operationName", "accountAttributes");
@@ -129,10 +143,31 @@ function enable(conf, settings, savedState) {
             throw new ScriptException("unreachable");
         }
         const account_response = responses[2];
-        const user_data = JSON.parse(account_response.body);
-        const get_license_response = JSON.parse(throw_if_not_ok(responses[0]).body);
+        const user_data = (() => {
+            try {
+                return JSON.parse(account_response.body);
+            }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${account_response.body} Error: ${e}`);
+            }
+        })();
+        const get_license_response = (() => {
+            try {
+                return JSON.parse(throw_if_not_ok(responses[0]).body);
+            }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[0]).body} Error: ${e}`);
+            }
+        })();
         const license_uri = `https://gue1-spclient.spotify.com/${get_license_response.uri}`;
-        const profile_attributes_response = JSON.parse(throw_if_not_ok(responses[1]).body);
+        const profile_attributes_response = (() => {
+            try {
+                return JSON.parse(throw_if_not_ok(responses[1]).body);
+            }
+            catch (e) {
+                throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[1]).body} Error: ${e}`);
+            }
+        })();
         const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/);
         if (feature_version_match_result === null) {
             throw new ScriptException("unable to find feature version number");
