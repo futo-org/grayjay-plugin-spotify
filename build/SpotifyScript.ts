@@ -183,7 +183,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             throw new ScriptException("unreachable")
         }
         const totp_init: number[] = (() => {
-            try { return JSON.parse("$&$%&$%DRHERT"+totp_init_string) }
+            try { return JSON.parse(totp_init_string) }
             catch (e) {
                 throw new ScriptException(`Failed to parse ${totp_init_string} Error: ${e}`)
             }

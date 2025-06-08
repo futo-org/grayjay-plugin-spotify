@@ -107,7 +107,7 @@ function enable(conf, settings, savedState) {
         }
         const totp_init = (() => {
             try {
-                return JSON.parse("$&$%&$%DRHERT" + totp_init_string);
+                return JSON.parse(totp_init_string);
             }
             catch (e) {
                 throw new ScriptException(`Failed to parse ${totp_init_string} Error: ${e}`);
