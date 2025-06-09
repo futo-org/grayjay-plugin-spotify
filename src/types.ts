@@ -1001,7 +1001,7 @@ export type SeektableResponse = {
 
 export type ProfileAttributesResponse = {
     readonly data: {
-        readonly me: null | {
+        readonly me: {
             readonly profile: {
                 readonly username: string
             }

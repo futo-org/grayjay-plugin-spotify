@@ -133,24 +133,18 @@ function enable(conf, settings, savedState) {
         account_url.searchParams.set("operationName", "accountAttributes");
         account_url.searchParams.set("variables", JSON.stringify({}));
         account_url.searchParams.set("extensions", JSON.stringify({ "persistedQuery": { "version": 1, "sha256Hash": "3d6fa0df06de5a5a02ebbe6dd8d98649fa1d1582908bf6acc6b0a5685e9b9323" } }));
-        const responses = local_http
+        const batch = local_http
             .batch()
-            .GET(get_license_url_url, { Authorization: `Bearer ${bearer_token}` }, false)
-            .GET(profile_attributes_url, { Authorization: `Bearer ${bearer_token}` }, false)
-            .GET(account_url.toString(), { Authorization: `Bearer ${bearer_token}` }, false)
-            .execute();
-        if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
+            .GET(get_license_url_url, { Authorization: `Bearer ${bearer_token}` }, false);
+        if (bridge.isLoggedIn()) {
+            batch
+                .GET(profile_attributes_url, { Authorization: `Bearer ${bearer_token}` }, false)
+                .GET(account_url.toString(), { Authorization: `Bearer ${bearer_token}` }, false);
+        }
+        const responses = batch.execute();
+        if (responses[0] === undefined) {
             throw new ScriptException("unreachable");
         }
-        const account_response = responses[2];
-        const user_data = (() => {
-            try {
-                return JSON.parse(account_response.body);
-            }
-            catch (e) {
-                throw new ScriptException(`Failed to parse ${account_response.body} Error: ${e}`);
-            }
-        })();
         const get_license_response = (() => {
             try {
                 return JSON.parse(throw_if_not_ok(responses[0]).body);
@@ -160,14 +154,6 @@ function enable(conf, settings, savedState) {
             }
         })();
         const license_uri = `https://gue1-spclient.spotify.com/${get_license_response.uri}`;
-        const profile_attributes_response = (() => {
-            try {
-                return JSON.parse(throw_if_not_ok(responses[1]).body);
-            }
-            catch (e) {
-                throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[1]).body} Error: ${e}`);
-            }
-        })();
         const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/);
         if (feature_version_match_result === null) {
             throw new ScriptException("unable to find feature version number");
@@ -185,7 +171,27 @@ function enable(conf, settings, savedState) {
             totp_init,
             server_time: c_time / 1000 //user_data.serverTime
         };
-        if (profile_attributes_response.data.me !== null) {
+        if (bridge.isLoggedIn()) {
+            if (responses[1] === undefined || responses[2] === undefined) {
+                throw new ScriptException("unreachable");
+            }
+            const account_response = responses[2];
+            const user_data = (() => {
+                try {
+                    return JSON.parse(account_response.body);
+                }
+                catch (e) {
+                    throw new ScriptException(`Failed to parse ${account_response.body} Error: ${e}`);
+                }
+            })();
+            const profile_attributes_response = (() => {
+                try {
+                    return JSON.parse(throw_if_not_ok(responses[1]).body);
+                }
+                catch (e) {
+                    throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[1]).body} Error: ${e}`);
+                }
+            })();
             state = {
                 ...state,
                 username: profile_attributes_response.data.me.profile.username,
