@@ -13,7 +13,7 @@ const PLAYLIST_URL_PREFIX = "https://open.spotify.com/playlist/";
 const COLLECTION_URL_PREFIX = "https://open.spotify.com/collection/";
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v1/query";
 const IMAGE_URL_PREFIX = "https://i.scdn.co/image/";
-const ACCESS_TOKEN_URL = "https://open.spotify.com/get_access_token";
+const ACCESS_TOKEN_URL = "https://open.spotify.com/api/token";
 const PLATFORM = "Spotify";
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0";
 const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop";
@@ -280,7 +280,14 @@ function getHome() {
     if (responses[0] === undefined || responses[1] === undefined || responses[2] === undefined) {
         throw new ScriptException("unreachable");
     }
-    const home_response = JSON.parse(throw_if_not_ok(responses[0]).body);
+    const home_response = (() => {
+        try {
+            return JSON.parse(throw_if_not_ok(responses[0]).body);
+        }
+        catch (e) {
+            throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[0]).body} Error: ${e}`);
+        }
+    })();
     const sections = home_response.data.home.sectionContainer.sections.items;
     if (bridge.isLoggedIn()) {
         const whats_new_response = JSON.parse(throw_if_not_ok(responses[1]).body);
