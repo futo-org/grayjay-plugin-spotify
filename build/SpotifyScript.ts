@@ -194,12 +194,12 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         // const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
         const server_totp = generate_totp(c_time / 1000, new Uint8Array(totp_init))
 
-        const access_token_response = local_http.GET(
+        const access_token_response = throw_if_not_ok(local_http.GET(
             `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`,
             // `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
             { "User-Agent": USER_AGENT },
             true
-        ).body
+        )).body
 
         const token_response: {
             readonly accessToken: string,

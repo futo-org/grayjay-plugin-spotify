@@ -117,9 +117,9 @@ function enable(conf, settings, savedState) {
         const totp = generate_totp(c_time, new Uint8Array(totp_init));
         // const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
         const server_totp = generate_totp(c_time / 1000, new Uint8Array(totp_init));
-        const access_token_response = local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`, 
+        const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`, 
         // `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
-        { "User-Agent": USER_AGENT }, true).body;
+        { "User-Agent": USER_AGENT }, true)).body;
         const token_response = (() => {
             try {
                 return JSON.parse(access_token_response);
