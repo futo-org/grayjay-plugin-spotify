@@ -194,21 +194,44 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         // const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
         const server_totp = generate_totp(c_time / 1000, new Uint8Array(totp_init))
 
-        const access_token_response = throw_if_not_ok(local_http.GET(
+        const access_token_response = local_http.GET(
             `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`,
             // `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
             { "User-Agent": USER_AGENT },
             true
-        )).body
+        )
 
         const token_response: {
             readonly accessToken: string,
             readonly accessTokenExpirationTimestampMs: number
         } = (() => {
-            try { return JSON.parse(access_token_response) }
-            catch (e) {
-                throw new ScriptException(`Failed to parse ${access_token_response} Error: ${e}`)
+            if (!access_token_response.isOk) {
+                const token_regex = /<script id="session" data-testid="session" type="application\/json">({.*?})<\/script>/
+
+                const token_match_result = home_response.body.match(token_regex)
+                if (token_match_result?.[1] === undefined) {
+                    throw new ScriptException("regex error")
+                }
+
+                const token_response: {
+                    readonly accessToken: string,
+                    readonly accessTokenExpirationTimestampMs: number
+                } = JSON.parse(token_match_result[1])
+
+                return token_response
             }
+
+            const token_response: {
+                readonly accessToken: string,
+                readonly accessTokenExpirationTimestampMs: number
+            } = (() => {
+                try { return JSON.parse(access_token_response.body) }
+                catch (e) {
+                    throw new ScriptException(`Failed to parse ${access_token_response.body} Error: ${e}`)
+                }
+            })()
+
+            return token_response
         })()
 
         const bearer_token = token_response.accessToken
