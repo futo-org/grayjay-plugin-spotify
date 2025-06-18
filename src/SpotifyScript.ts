@@ -206,6 +206,10 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             readonly accessTokenExpirationTimestampMs: number
         } = (() => {
             if (!access_token_response.isOk) {
+                if (!bridge.isLoggedIn()) {
+                    bridge.devSubmit("home html response", home_response.body)
+                }
+
                 const token_regex = /<script id="session" data-testid="session" type="application\/json">({.*?})<\/script>/
 
                 const token_match_result = home_response.body.match(token_regex)

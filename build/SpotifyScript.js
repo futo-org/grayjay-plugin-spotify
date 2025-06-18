@@ -122,6 +122,9 @@ function enable(conf, settings, savedState) {
         { "User-Agent": USER_AGENT }, true);
         const token_response = (() => {
             if (!access_token_response.isOk) {
+                if (!bridge.isLoggedIn()) {
+                    bridge.devSubmit("home html response", home_response.body);
+                }
                 const token_regex = /<script id="session" data-testid="session" type="application\/json">({.*?})<\/script>/;
                 const token_match_result = home_response.body.match(token_regex);
                 if (token_match_result?.[1] === undefined) {
