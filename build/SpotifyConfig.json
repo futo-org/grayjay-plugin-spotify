@@ -1,4 +1,5 @@
 {
+    "$schema" : "https://github.com/MithrilGoat/GrayJay-Plugin-Schema/releases/latest/download/Schema.json",
     "name": "Spotify",
     "description": "Listen to millions of songs on Spotify",
     "author": "FUTO",
@@ -7,7 +8,7 @@
     "sourceUrl": "https://plugins.grayjay.app/Spotify/SpotifyConfig.json",
     "repositoryUrl": "https://gitlab.futo.org/videostreaming/plugins/spotify",
     "scriptUrl": "./SpotifyScript.js",
-    "version": 24,
+    "version": 25,
     "iconUrl": "./SpotifyIcon.png",
     "id": "4e365633-6d3f-4267-8941-fdc36631d813",
     "scriptSignature": "",
@@ -16,6 +17,7 @@
         "Http"
     ],
     "allowEval": false,
+    "allowAllHttpHeaderAccess": true,
     "allowUrls": [
         "open.spotify.com",
         "spclient.wg.spotify.com",
@@ -39,12 +41,13 @@
             "name": "Provide Spotify Activity",
             "description": "Tell Spotify what you played.",
             "type": "Boolean",
-            "default": "true"
+            "default": "false"
         }
     ],
     "changelog": {
-        "24": [
-            "Fix authentication endpoint"
+        "25": [
+            "Default Spotify activity sharing to off",
+            "Authentication fix attempts"
         ]
     }
 }

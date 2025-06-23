@@ -189,14 +189,22 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             }
         })()
 
+        const config_regex = /<script id="appServerConfig" type="text\/plain">([a-zA-Z0-9=+]+)<\/script>/
+        const app_server_config = home_response.body.match(config_regex)?.[1]
+
+        if (app_server_config === undefined) {
+            throw new ScriptException("unable to find server time")
+        }
+
+        const config = JSON.parse(atob(app_server_config))
+
         const c_time = Date.now()
+        const s_time = config.serverTime
         const totp = generate_totp(c_time, new Uint8Array(totp_init))
-        // const server_totp = generate_totp(user_data.serverTime, new Uint8Array(totp_init))
-        const server_totp = generate_totp(c_time / 1000, new Uint8Array(totp_init))
+        const server_totp = generate_totp(s_time, new Uint8Array(totp_init))
 
         const access_token_response = local_http.GET(
-            `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`,
-            // `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${user_data.serverTime}&cTime=${c_time}`,
+            `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${s_time}&cTime=${c_time}`,
             { "User-Agent": USER_AGENT },
             true
         )
@@ -206,23 +214,11 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             readonly accessTokenExpirationTimestampMs: number
         } = (() => {
             if (!access_token_response.isOk) {
-                const token_regex = /<script id="session" data-testid="session" type="application\/json">({.*?})<\/script>/
-
-                const token_match_result = home_response.body.match(token_regex)
-                if (token_match_result?.[1] === undefined) {
-                    if (!bridge.isLoggedIn()) {
-                        bridge.devSubmit("access token response", JSON.stringify(access_token_response))
-                        bridge.devSubmit("home html response", home_response.body)
-                    }
-                    throw new ScriptException("regex error")
+                if (!bridge.isLoggedIn()) {
+                    bridge.devSubmit("access token response", JSON.stringify(access_token_response))
+                    bridge.devSubmit("home html response", home_response.body)
                 }
-
-                const token_response: {
-                    readonly accessToken: string,
-                    readonly accessTokenExpirationTimestampMs: number
-                } = JSON.parse(token_match_result[1])
-
-                return token_response
+                throw new ScriptException("unable to aquire access token")
             }
 
             const token_response: {
@@ -294,8 +290,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
             license_uri: license_uri,
             is_premium: false,
-            totp_init,
-            server_time: c_time / 1000//user_data.serverTime
+            totp_init
         }
 
         if (bridge.isLoggedIn()) {
@@ -374,15 +369,20 @@ function generate_totp(ts: number, totp_init: Uint8Array) {
     // @ts-expect-error spotify code
     return (((127 & hmac[o]) << 24 | (255 & hmac[o + 1]) << 16 | (255 & hmac[o + 2]) << 8 | 255 & hmac[o + 3]) % 10 ** digits).toString().padStart(digits, "0")
 }
+function get_server_time() {
+    const server_time_obj: { serverTime: number } = JSON.parse(local_http.GET("https://open.spotify.com/api/server-time", {}, false).body)
+
+    return server_time_obj.serverTime
+}
 function download_bearer_token() {
+    const s_time = get_server_time()
     const c_time = Date.now()
     const totp = generate_totp(c_time, new Uint8Array(local_state.totp_init))
-    const server_totp = generate_totp(c_time / 1000, new Uint8Array(local_state.totp_init))
-    // const server_totp = generate_totp(local_state.server_time, new Uint8Array(local_state.totp_init))
+    // const server_totp = generate_totp(c_time / 1000, new Uint8Array(local_state.totp_init))
+    const server_totp = generate_totp(s_time, new Uint8Array(local_state.totp_init))
 
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&cTime=${c_time}`, {}, true)).body
-    // const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${local_state.server_time}&cTime=${c_time}`, {}, true)).body
+    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${s_time}&cTime=${c_time}`, {}, true)).body
 
     const token_response: {
         readonly accessToken: string,
@@ -404,8 +404,7 @@ function check_and_update_token() {
         expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
         license_uri: local_state.license_uri,
         is_premium: local_state.is_premium,
-        totp_init: local_state.totp_init,
-        server_time: local_state.server_time
+        totp_init: local_state.totp_init
     }
     if (local_state.username !== undefined) {
         state = { ...state, username: local_state.username }
