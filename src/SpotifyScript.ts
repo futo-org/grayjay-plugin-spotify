@@ -75,6 +75,7 @@ const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Fir
 const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop" as const
 const SPOTIFY_CONNECT_NAME = "Web Player (Grayjay)" as const
 const CLIENT_VERSION = "harmony:4.42.0-2780565f" as const
+const TOTP_VERSION = 7
 
 const HARDCODED_ZERO = 0 as const
 const HARDCODED_EMPTY_STRING = "" as const
@@ -204,7 +205,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const server_totp = generate_totp(s_time, new Uint8Array(totp_init))
 
         const access_token_response = local_http.GET(
-            `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${s_time}&cTime=${c_time}`,
+            `${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=${TOTP_VERSION}`,
             { "User-Agent": USER_AGENT },
             true
         )
@@ -378,11 +379,10 @@ function download_bearer_token() {
     const s_time = get_server_time()
     const c_time = Date.now()
     const totp = generate_totp(c_time, new Uint8Array(local_state.totp_init))
-    // const server_totp = generate_totp(c_time / 1000, new Uint8Array(local_state.totp_init))
     const server_totp = generate_totp(s_time, new Uint8Array(local_state.totp_init))
 
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=5&sTime=${s_time}&cTime=${c_time}`, {}, true)).body
+    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=${TOTP_VERSION}`, {}, true)).body
 
     const token_response: {
         readonly accessToken: string,
