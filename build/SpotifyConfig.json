@@ -17,7 +17,6 @@
         "Http"
     ],
     "allowEval": false,
-    "allowAllHttpHeaderAccess": true,
     "allowUrls": [
         "open.spotify.com",
         "spclient.wg.spotify.com",
