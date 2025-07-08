@@ -174,11 +174,16 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
             false
         ).body
 
-        const secrets_js_section_regex = /!function\([a-zA-Z]+\){const.+?\.secrets=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;/
+        const secrets_js_section_regex = /!function\([a-zA-Z]+\){const.+?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;/
 
         const match_result = web_player_js_contents.match(secrets_js_section_regex)
-        const code_string = match_result?.[0]
-        const variable = match_result?.[1]
+
+        if (match_result === null || match_result[0] === undefined || match_result[1] === undefined) {
+            throw new ScriptException("unable to find TOTP JS code")
+        }
+
+        const code_string = match_result[0]
+        const variable = match_result[1]
 
         const generate_secrets = new Function(`${code_string}return ${variable};`)
 

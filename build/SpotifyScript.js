@@ -97,10 +97,13 @@ function enable(conf, settings, savedState) {
         const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D";
         const web_player_js_url = web_player_js_match_result[0];
         const web_player_js_contents = local_http.GET(web_player_js_url, {}, false).body;
-        const secrets_js_section_regex = /!function\([a-zA-Z]+\){const.+?\.secrets=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;/;
+        const secrets_js_section_regex = /!function\([a-zA-Z]+\){const.+?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;/;
         const match_result = web_player_js_contents.match(secrets_js_section_regex);
-        const code_string = match_result?.[0];
-        const variable = match_result?.[1];
+        if (match_result === null || match_result[0] === undefined || match_result[1] === undefined) {
+            throw new ScriptException("unable to find TOTP JS code");
+        }
+        const code_string = match_result[0];
+        const variable = match_result[1];
         const generate_secrets = new Function(`${code_string}return ${variable};`);
         const secrets_obj = generate_secrets();
         const first = secrets_obj.secrets[0];
