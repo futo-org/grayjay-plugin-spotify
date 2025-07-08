@@ -27,7 +27,8 @@ export type State = {
     readonly license_uri: string
     readonly is_premium: boolean
     readonly username?: string
-    readonly totp_init: number[]
+    readonly totp_secret: number[]
+    readonly totp_version: number
 }
 export type ChannelTypeCapabilities = typeof Type.Feed.Playlists | typeof Type.Feed.Albums | typeof Type.Feed.Videos
 export type SearchTypes = typeof Type.Feed.Videos

@@ -19,7 +19,6 @@ const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Fir
 const PLATFORM_IDENTIFIER = "web_player linux undefined;firefox 126.0;desktop";
 const SPOTIFY_CONNECT_NAME = "Web Player (Grayjay)";
 const CLIENT_VERSION = "harmony:4.42.0-2780565f";
-const TOTP_VERSION = 7;
 const HARDCODED_ZERO = 0;
 const HARDCODED_EMPTY_STRING = "";
 const EMPTY_AUTHOR = new PlatformAuthorLink(new PlatformID(PLATFORM, "", plugin.config.id), "", "");
@@ -98,22 +97,21 @@ function enable(conf, settings, savedState) {
         const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D";
         const web_player_js_url = web_player_js_match_result[0];
         const web_player_js_contents = local_http.GET(web_player_js_url, {}, false).body;
-        const totp_init_match_result = web_player_js_contents.match(/\[([0-9]{2},){16}[0-9]{2}\]/);
-        if (totp_init_match_result === null) {
-            throw new ScriptException("unable to find totp init key");
+        const secrets_js_section_regex = /!function\([a-zA-Z]+\){const.+?\.secrets=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;/;
+        const match_result = web_player_js_contents.match(secrets_js_section_regex);
+        const code_string = match_result?.[0];
+        const variable = match_result?.[1];
+        const generate_secrets = new Function(`${code_string}return ${variable};`);
+        const secrets_obj = generate_secrets();
+        const first = secrets_obj.secrets[0];
+        if (first === undefined) {
+            throw new ScriptException("unable to find TOTP secrets");
         }
-        const totp_init_string = totp_init_match_result[0];
-        if (totp_init_string === undefined) {
-            throw new ScriptException("unreachable");
-        }
-        const totp_init = (() => {
-            try {
-                return JSON.parse(totp_init_string);
-            }
-            catch (e) {
-                throw new ScriptException(`Failed to parse ${totp_init_string} Error: ${e}`);
-            }
-        })();
+        const totp_secret = first.secret.split("").map(((e, index) => {
+            const i = e.charCodeAt(0);
+            return i ^ (index % 33 + 9);
+        }));
+        const totp_version = first.version;
         const config_regex = /<script id="appServerConfig" type="text\/plain">([a-zA-Z0-9=+]+)<\/script>/;
         const app_server_config = home_response.body.match(config_regex)?.[1];
         if (app_server_config === undefined) {
@@ -122,9 +120,9 @@ function enable(conf, settings, savedState) {
         const config = JSON.parse(atob(app_server_config));
         const c_time = Date.now();
         const s_time = config.serverTime;
-        const totp = generate_totp(c_time, new Uint8Array(totp_init));
-        const server_totp = generate_totp(s_time, new Uint8Array(totp_init));
-        const access_token_response = local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=${TOTP_VERSION}`, { "User-Agent": USER_AGENT }, true);
+        const totp = generate_totp(c_time, totp_secret);
+        const server_totp = generate_totp(s_time, totp_secret);
+        const access_token_response = local_http.GET(`${ACCESS_TOKEN_URL}?reason=init&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=${totp_version}`, { "User-Agent": USER_AGENT }, true);
         const token_response = (() => {
             if (!access_token_response.isOk) {
                 if (!bridge.isLoggedIn()) {
@@ -183,7 +181,8 @@ function enable(conf, settings, savedState) {
             expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
             license_uri: license_uri,
             is_premium: false,
-            totp_init
+            totp_secret: totp_secret,
+            totp_version
         };
         if (bridge.isLoggedIn()) {
             if (responses[1] === undefined || responses[2] === undefined) {
@@ -215,15 +214,15 @@ function enable(conf, settings, savedState) {
         local_state = state;
     }
 }
-function generate_totp(ts, totp_init) {
+function generate_totp(ts, secret_nums) {
+    const secret = new Uint8Array(secret_nums);
     // constants from web-player.*.js
     const digits = 6;
     const period = 30;
     const counter = Math.floor(ts / 1e3 / period);
     // spotify code from web-player.*.js
-    const temp = totp_init.map(((e, t) => e ^ t % 33 + 9));
     // @ts-expect-error TODO type TextEncoder
-    const key = (new TextEncoder()).encode(temp.join(""));
+    const key = (new TextEncoder()).encode(secret.join(""));
     const value = (e => {
         const n = new Uint8Array(8);
         let r = e;
@@ -253,10 +252,10 @@ function get_server_time() {
 function download_bearer_token() {
     const s_time = get_server_time();
     const c_time = Date.now();
-    const totp = generate_totp(c_time, new Uint8Array(local_state.totp_init));
-    const server_totp = generate_totp(s_time, new Uint8Array(local_state.totp_init));
+    const totp = generate_totp(c_time, local_state.totp_secret);
+    const server_totp = generate_totp(s_time, local_state.totp_secret);
     // use the authenticated client to get a logged in bearer token
-    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=${TOTP_VERSION}`, {}, true)).body;
+    const access_token_response = throw_if_not_ok(local_http.GET(`${ACCESS_TOKEN_URL}?reason=transport&productType=web-player&totp=${totp}&totpServer=${server_totp}&totpVer=${local_state.totp_version}`, {}, true)).body;
     const token_response = JSON.parse(access_token_response);
     return token_response;
 }
@@ -273,7 +272,8 @@ function check_and_update_token() {
         expiration_timestamp_ms: token_response.accessTokenExpirationTimestampMs,
         license_uri: local_state.license_uri,
         is_premium: local_state.is_premium,
-        totp_init: local_state.totp_init
+        totp_secret: local_state.totp_secret,
+        totp_version: local_state.totp_version
     };
     if (local_state.username !== undefined) {
         state = { ...state, username: local_state.username };
