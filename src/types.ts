@@ -244,7 +244,7 @@ export type SearchResponse = {
             readonly tracksV2: {
                 readonly items: {
                     readonly item: {
-                        readonly data: SectionItemTrack
+                        readonly data: SectionItemTrack | SectionItemNotFound
                     }
                 }[]
                 readonly totalCount: number

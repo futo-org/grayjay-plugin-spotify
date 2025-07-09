@@ -97,16 +97,17 @@ function enable(conf, settings, savedState) {
         const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D";
         const web_player_js_url = web_player_js_match_result[0];
         const web_player_js_contents = local_http.GET(web_player_js_url, {}, false).body;
-        const secrets_js_section_regex = /}}(var [a-zA-Z]+=[a-zA-Z]+\([0-9]+\);)+(.+?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)/;
+        const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)/;
         const match_result = web_player_js_contents.match(secrets_js_section_regex);
-        if (match_result === null || match_result[0] === undefined || match_result[1] === undefined || match_result[2] === undefined || match_result[3] === undefined) {
+        if (match_result === null || match_result[0] === undefined || match_result[1] === undefined || match_result[2] === undefined) {
             throw new ScriptException("unable to find TOTP JS code");
         }
-        const code_string = match_result[2];
-        const variable = match_result[3];
+        const code_string = match_result[1];
+        const variable = match_result[2];
         const generate_secrets = (() => {
             try {
-                const generate_secrets = new Function(`${code_string}return ${variable};`);
+                // mock empty n function
+                const generate_secrets = new Function(`const n=()=>{};${code_string}return ${variable};`);
                 return generate_secrets;
             }
             catch (error) {
@@ -514,7 +515,10 @@ class SearchPager extends VideoPager {
 }
 function format_song_and_episode_results(search_response) {
     return [
-        ...search_response.data.searchV2.tracksV2.items.map(function (track) {
+        ...search_response.data.searchV2.tracksV2.items.flatMap(function (track) {
+            if (track.item.data.__typename === "NotFound") {
+                return [];
+            }
             const artist = track.item.data.artists.items[0];
             if (artist === undefined) {
                 throw new ScriptException("missing artist");
