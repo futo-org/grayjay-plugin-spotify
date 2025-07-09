@@ -104,7 +104,16 @@ function enable(conf, settings, savedState) {
         }
         const code_string = match_result[0];
         const variable = match_result[1];
-        const generate_secrets = new Function(`${code_string}return ${variable};`);
+        const generate_secrets = (() => {
+            try {
+                const generate_secrets = new Function(`${code_string}return ${variable};`);
+                return generate_secrets;
+            }
+            catch (error) {
+                bridge.devSubmit("web-player js", web_player_js_contents);
+                throw new ScriptException(`unable to run javascript code ${error}`);
+            }
+        })();
         const secrets_obj = generate_secrets();
         const first = secrets_obj.secrets[0];
         if (first === undefined) {
@@ -208,6 +217,9 @@ function enable(conf, settings, savedState) {
                     throw new ScriptException(`Failed to parse ${throw_if_not_ok(responses[1]).body} Error: ${e}`);
                 }
             })();
+            if (profile_attributes_response.data.me === null) {
+                throw new LoginRequiredException("Try logging in again");
+            }
             state = {
                 ...state,
                 username: profile_attributes_response.data.me.profile.username,
