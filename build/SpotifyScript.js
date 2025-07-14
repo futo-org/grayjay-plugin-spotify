@@ -96,25 +96,7 @@ function enable(conf, settings, savedState) {
         const get_license_url_url = "https://gue1-spclient.spotify.com/melody/v1/license_url?keysystem=com.widevine.alpha&sdk_name=harmony&sdk_version=4.41.0";
         const profile_attributes_url = "https://api-partner.spotify.com/pathfinder/v1/query?operationName=profileAttributes&variables=%7B%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%2253bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced%22%7D%7D";
         const web_player_js_url = web_player_js_match_result[0];
-        const web_player_js_contents = local_http.GET(web_player_js_url, {}, false).body;
-        const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)/;
-        const match_result = web_player_js_contents.match(secrets_js_section_regex);
-        if (match_result === null || match_result[0] === undefined || match_result[1] === undefined || match_result[2] === undefined) {
-            throw new ScriptException("unable to find TOTP JS code");
-        }
-        const code_string = match_result[1];
-        const variable = match_result[2];
-        const secrets_obj = (() => {
-            try {
-                // mock empty n function
-                const secrets = (new Function(`const n=()=>{};${code_string}return ${variable};`))();
-                return secrets;
-            }
-            catch (error) {
-                bridge.devSubmit("web-player js", web_player_js_contents);
-                throw new ScriptException(`unable to run javascript code ${error}`);
-            }
-        })();
+        const { secrets_obj, feature_version } = get_secrets(web_player_js_url);
         const first = secrets_obj.secrets[0];
         if (first === undefined) {
             throw new ScriptException("unable to find TOTP secrets");
@@ -179,14 +161,6 @@ function enable(conf, settings, savedState) {
             }
         })();
         const license_uri = `https://gue1-spclient.spotify.com/${get_license_response.uri}`;
-        const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/);
-        if (feature_version_match_result === null) {
-            throw new ScriptException("unable to find feature version number");
-        }
-        const feature_version = feature_version_match_result[1];
-        if (feature_version === undefined) {
-            throw new ScriptException("unreachable");
-        }
         let state = {
             feature_version,
             bearer_token,
@@ -228,6 +202,37 @@ function enable(conf, settings, savedState) {
         }
         local_state = state;
     }
+}
+function get_secrets(web_player_js_url) {
+    const web_player_js_contents = local_http.GET(web_player_js_url, {}, false).body;
+    const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)/;
+    const match_result = web_player_js_contents.match(secrets_js_section_regex);
+    if (match_result === null || match_result[0] === undefined || match_result[1] === undefined || match_result[2] === undefined) {
+        throw new ScriptException("unable to find TOTP JS code");
+    }
+    const code_string = match_result[1];
+    const variable = match_result[2];
+    const secrets_obj = (() => {
+        try {
+            // mock empty n function
+            const secrets = (new Function(`const n=()=>{};${code_string}return ${variable};`))();
+            return secrets;
+        }
+        catch (error) {
+            const match_result = web_player_js_url.match(/([0-9a-z]{8})\.js/);
+            bridge.devSubmit("web-player js", web_player_js_url + web_player_js_contents);
+            throw new ScriptException(`unable to run javascript code from file id ${match_result?.[1]} ${error}`);
+        }
+    })();
+    const feature_version_match_result = web_player_js_contents.match(/"(web-player_(.*?))"/);
+    if (feature_version_match_result === null) {
+        throw new ScriptException("unable to find feature version number");
+    }
+    const feature_version = feature_version_match_result[1];
+    if (feature_version === undefined) {
+        throw new ScriptException("unreachable");
+    }
+    return { secrets_obj, feature_version };
 }
 function generate_totp(ts, secret_nums) {
     const secret = new Uint8Array(secret_nums);
@@ -3472,5 +3477,5 @@ function get_gid(song_uri_id) {
 console.log(assert_never, log_passthrough);
 // export statements are removed during build step
 // used for unit testing in SpotifyScript.test.ts
-// export { get_gid, assert_never, log_passthrough };
+// export { get_gid, assert_never, log_passthrough, get_secrets };
 //# sourceMappingURL=SpotifyScript.js.map

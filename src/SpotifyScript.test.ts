@@ -4,7 +4,7 @@ import assert from "node:assert"
 // initializes global state
 import "@kaidelorenzo/grayjay-polyfill"
 
-import { get_gid } from "./SpotifyScript.js"
+import { get_gid, get_secrets } from "./SpotifyScript.js"
 //#endregion
 
 describe("script module", { skip: false }, () => {
@@ -19,5 +19,10 @@ describe("script module", { skip: false }, () => {
         const song_uri_id = "6XXxKsu3RJeN3ZvbMYrgQW"
         const gid = get_gid(song_uri_id)
         assert.strictEqual(gid, "e4eac7232f3d48fb965b5a03c49eb93a")
+    })
+    test("test regex", { skip: false }, () => {
+        ["f34a1773", "4333d450"].map((file_id) => {
+            get_secrets(`https://open-exp.spotifycdn.com/cdn/build/web-player/web-player.${file_id}.js`)
+        })
     })
 })
