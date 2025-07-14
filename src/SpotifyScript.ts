@@ -354,7 +354,7 @@ function get_secrets(web_player_js_url: string) {
             const match_result = web_player_js_url.match(/([0-9a-z]{8})\.js/)
 
             bridge.devSubmit("web-player js", web_player_js_url + web_player_js_contents)
-            throw new ScriptException(`unable to run javascript code from file id ${match_result?.[1]} ${error}`)
+            throw new ScriptException(`unable to find secrets in file id ${match_result?.[1]} ${error}`)
         }
     })()
 
