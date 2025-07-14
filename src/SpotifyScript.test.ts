@@ -21,7 +21,7 @@ describe("script module", { skip: false }, () => {
         assert.strictEqual(gid, "e4eac7232f3d48fb965b5a03c49eb93a")
     })
     test("test regex", { skip: false }, () => {
-        ["f34a1773", "4333d450"].map((file_id) => {
+        ["c5849afb", "f34a1773", "4333d450"].map((file_id) => {
             get_secrets(`https://open-exp.spotifycdn.com/cdn/build/web-player/web-player.${file_id}.js`)
         })
     })
