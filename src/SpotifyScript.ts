@@ -185,23 +185,21 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
         const code_string = match_result[1]
         const variable = match_result[2]
 
-        const generate_secrets = (() => {
-            try {
-                // mock empty n function
-                const generate_secrets = new Function(`const n=()=>{};${code_string}return ${variable};`)
-                return generate_secrets
-            } catch (error) {
-                bridge.devSubmit("web-player js", web_player_js_contents)
-                throw new ScriptException(`unable to run javascript code ${error}`)
-            }
-        })()
-
         const secrets_obj: {
             secrets: {
                 secret: string,
                 version: number
             }[]
-        } = generate_secrets()
+        } = (() => {
+            try {
+                // mock empty n function
+                const secrets = (new Function(`const n=()=>{};${code_string}return ${variable};`))()
+                return secrets
+            } catch (error) {
+                bridge.devSubmit("web-player js", web_player_js_contents)
+                throw new ScriptException(`unable to run javascript code ${error}`)
+            }
+        })()
 
         const first = secrets_obj.secrets[0]
 

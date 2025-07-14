@@ -104,18 +104,17 @@ function enable(conf, settings, savedState) {
         }
         const code_string = match_result[1];
         const variable = match_result[2];
-        const generate_secrets = (() => {
+        const secrets_obj = (() => {
             try {
                 // mock empty n function
-                const generate_secrets = new Function(`const n=()=>{};${code_string}return ${variable};`);
-                return generate_secrets;
+                const secrets = (new Function(`const n=()=>{};${code_string}return ${variable};`))();
+                return secrets;
             }
             catch (error) {
                 bridge.devSubmit("web-player js", web_player_js_contents);
                 throw new ScriptException(`unable to run javascript code ${error}`);
             }
         })();
-        const secrets_obj = generate_secrets();
         const first = secrets_obj.secrets[0];
         if (first === undefined) {
             throw new ScriptException("unable to find TOTP secrets");
