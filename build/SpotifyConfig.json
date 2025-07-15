@@ -8,7 +8,7 @@
     "sourceUrl": "https://plugins.grayjay.app/Spotify/SpotifyConfig.json",
     "repositoryUrl": "https://gitlab.futo.org/videostreaming/plugins/spotify",
     "scriptUrl": "./SpotifyScript.js",
-    "version": 29,
+    "version": 30,
     "iconUrl": "./SpotifyIcon.png",
     "id": "4e365633-6d3f-4267-8941-fdc36631d813",
     "scriptSignature": "",
@@ -44,8 +44,8 @@
         }
     ],
     "changelog": {
-        "29": [
-            "Updated logging to help fix issues"
+        "30": [
+            "Update secrets regex"
         ]
     }
 }

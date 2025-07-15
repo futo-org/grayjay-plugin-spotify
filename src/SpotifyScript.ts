@@ -329,7 +329,7 @@ function get_secrets(web_player_js_url: string) {
         false
     ).body
 
-    const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)/
+    const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)(var|(function [a-zA-Z]{2}\(\){.*?})var)/
 
     const match_result = web_player_js_contents.match(secrets_js_section_regex)
 
@@ -337,8 +337,12 @@ function get_secrets(web_player_js_url: string) {
         throw new ScriptException("unable to find TOTP JS code")
     }
 
-    const code_string = match_result[1]
+    let code_string = match_result[1]
     const variable = match_result[2]
+
+    if (match_result[4] !== undefined) {
+        code_string += match_result[4]
+    }
 
     const secrets_obj: {
         secrets: {
