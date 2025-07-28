@@ -205,15 +205,15 @@ function enable(conf, settings, savedState) {
 }
 function get_secrets(web_player_js_url) {
     const web_player_js_contents = local_http.GET(web_player_js_url, {}, false).body;
-    const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)(var|(function [a-zA-Z]{2}\(\){.*?})var)/;
+    const secrets_js_section_regex = /}}var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);(var [a-zA-Z]{2}=[a-zA-Z]+\([0-9]+\);|async function.*?}})(.*?=\[[a-zA-Z]+,[a-zA-Z]+,[a-zA-Z]+\];const ([a-zA-Z]+)=[a-zA-Z]+;)(var|(function [a-zA-Z]{2}\(\){.*?})var)/;
     const match_result = web_player_js_contents.match(secrets_js_section_regex);
-    if (match_result === null || match_result[0] === undefined || match_result[1] === undefined || match_result[2] === undefined) {
+    if (match_result === null || match_result[0] === undefined || match_result[1] === undefined || match_result[2] === undefined || match_result[3] === undefined) {
         throw new ScriptException("unable to find TOTP JS code");
     }
-    let code_string = match_result[1];
-    const variable = match_result[2];
-    if (match_result[4] !== undefined) {
-        code_string += match_result[4];
+    let code_string = match_result[2];
+    const variable = match_result[3];
+    if (match_result[5] !== undefined) {
+        code_string += match_result[5];
     }
     const secrets_obj = (() => {
         try {
