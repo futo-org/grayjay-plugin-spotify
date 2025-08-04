@@ -1,5 +1,5 @@
 {
-    "$schema" : "https://github.com/MithrilGoat/GrayJay-Plugin-Schema/releases/latest/download/Schema.json",
+    "$schema": "https://github.com/MithrilGoat/GrayJay-Plugin-Schema/releases/latest/download/Schema.json",
     "name": "Spotify",
     "description": "Listen to millions of songs on Spotify",
     "author": "FUTO",
@@ -8,7 +8,7 @@
     "sourceUrl": "https://plugins.grayjay.app/Spotify/SpotifyConfig.json",
     "repositoryUrl": "https://gitlab.futo.org/videostreaming/plugins/spotify",
     "scriptUrl": "./SpotifyScript.js",
-    "version": 31,
+    "version": 32,
     "iconUrl": "./SpotifyIcon.png",
     "id": "4e365633-6d3f-4267-8941-fdc36631d813",
     "scriptSignature": "",
@@ -41,11 +41,18 @@
             "description": "Tell Spotify what you played.",
             "type": "Boolean",
             "default": "false"
+        },
+        {
+            "variable": "bypassAccountProtectionForceDisable",
+            "name": "Bypass Account Protection Force Disable",
+            "description": "There have been reports of account suspension when logged into the Spotify plugin. Toggle this setting to restore normal plugin functionality",
+            "type": "Boolean",
+            "default": "false"
         }
     ],
     "changelog": {
-        "31": [
-            "Update secrets regex"
+        "32": [
+            "Force disable the plugin to prevent folks from accidentally getting their account suspended"
         ]
     }
 }

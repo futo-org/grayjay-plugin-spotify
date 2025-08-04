@@ -1,6 +1,7 @@
 //#region custom types
 export type Settings = {
     spotifyActivity: boolean
+    bypassAccountProtectionForceDisable: boolean
 }
 
 export type SpotifySource = Required<Omit<Source<
