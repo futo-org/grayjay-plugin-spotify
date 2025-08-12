@@ -695,7 +695,7 @@ export type TrackMetadataResponse = {
                     readonly id: string
                     readonly profile: { readonly name: string }
                     readonly visuals: {
-                        readonly avatarImage: {
+                        readonly avatarImage: null | {
                             readonly sources: ImageSources
                         }
                     }

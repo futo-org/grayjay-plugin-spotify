@@ -781,7 +781,7 @@ function getContentDetails(url: string) {
                 throw new ScriptException("missing artist")
             }
             const artist_url = `https://open.spotify.com/artist/${first_artist.id}`
-            const highest_quality_artist_cover_art = first_artist.visuals.avatarImage.sources.reduce(function (accumulator, current) {
+            const highest_quality_artist_cover_art = first_artist.visuals.avatarImage?.sources.reduce(function (accumulator, current) {
                 return accumulator.height > current.height ? accumulator : current
             })
 
@@ -886,7 +886,7 @@ function getContentDetails(url: string) {
                     new PlatformID(PLATFORM, first_artist.id, plugin.config.id),
                     first_artist.profile.name,
                     artist_url,
-                    highest_quality_artist_cover_art.url,
+                    highest_quality_artist_cover_art?.url,
                     artist_metadata_response.data.artistUnion.stats.monthlyListeners
                 ),
                 url: song_url,
