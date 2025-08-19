@@ -148,7 +148,7 @@ function enable(conf: SourceConfig, settings: Settings, savedState?: string | nu
     local_settings = settings
 
     if (!local_settings.bypassAccountProtectionForceDisable && bridge.isLoggedIn()) {
-        throw new ScriptException("Spotify login is force disabled bypass this in the settings")
+        throw new ScriptException("Spotify login is force disabled. You can bypass this in the Spotify source settings")
     }
 
     if (savedState !== null && savedState !== undefined) {
